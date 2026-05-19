@@ -145,19 +145,36 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({ visible, onClose, on
         // `r.summary` was undefined.
         const raw = Array.isArray(h.routes) ? h.routes : [];
         setRoutes(raw.map(normaliseRoute));
+      } else {
+        // Fetch failed (401 expired session, 5xx etc.). Clear the list
+        // so the user can't tap "Resume" on stale entries from a previous
+        // session — that was the root cause of "Failed to resume route"
+        // 404s against routes that no longer exist in route_history.
+        setRoutes([]);
       }
       if (statsRes.ok) {
         setStats(await statsRes.json());
+      } else {
+        setStats(null);
       }
     } catch (e) {
       console.error('History fetch error:', e);
+      setRoutes([]);
+      setStats(null);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (visible) fetchData();
+    if (visible) {
+      fetchData();
+    } else {
+      // When the modal closes, drop cached rows. Next open triggers a
+      // fresh fetch — prevents a stale list from a 30-minute-old session
+      // ever showing route IDs that have since been archived/deleted.
+      setRoutes([]);
+    }
   }, [visible]);
 
   const deleteRoute = (routeId: string) => {

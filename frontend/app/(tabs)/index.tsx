@@ -4209,10 +4209,28 @@ export default function RouteScreen() {
               await fetchStops();
               try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
             } else {
-              Alert.alert('Error', 'Failed to resume route');
+              // Surface the real failure reason so we stop chasing "Failed to resume route".
+              // Backend now returns structured `detail` for 404 (not found), 400 (no stops),
+              // 401 (session expired) and 500 (internal). We map them to actionable copy.
+              let detail = '';
+              try {
+                const body = await res.json();
+                detail = body?.detail || body?.message || '';
+              } catch {
+                try { detail = await res.text(); } catch {}
+              }
+              const human =
+                res.status === 401 ? 'Your session expired. Please sign in again.' :
+                res.status === 404 ? 'This route is no longer in history. Pull-to-refresh to update the list.' :
+                res.status === 400 ? (detail || 'Archived route has no stops to resume.') :
+                (detail || `Server error (${res.status}). Try again in a moment.`);
+              Alert.alert('Could not resume route', human);
             }
-          } catch (e) {
-            Alert.alert('Error', 'Failed to resume route');
+          } catch (e: any) {
+            Alert.alert(
+              'Network error',
+              `Could not reach the server. Check your connection and try again.\n\n${e?.message || ''}`,
+            );
           }
         }}
         insets={insets}

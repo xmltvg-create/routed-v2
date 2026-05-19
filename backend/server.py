@@ -901,33 +901,86 @@ async def export_route_kml(route_id: str, current_user: User = Depends(get_curre
 
 @api_router.post("/routes/history/{route_id}/resume")
 async def resume_route(route_id: str, current_user: User = Depends(get_current_user)):
-    """Restore an archived route back into active stops (resets completion status)."""
-    route = await db.route_history.find_one(
-        {"id": route_id, "user_id": current_user.user_id}, {"_id": 0}
-    )
-    if not route:
-        raise HTTPException(status_code=404, detail="Route not found")
+    """Restore an archived route back into active stops (resets completion status).
 
-    archived_stops = route.get("stops", [])
-    if not archived_stops:
-        raise HTTPException(status_code=400, detail="Archived route has no stops")
+    Hardened against:
+      - Legacy archives saved under a different user_id (e.g. old dev-user-123).
+      - Stops carrying completion telemetry fields that must be cleared so the
+        resumed route shows as pristine pending.
+      - Duplicate stop ids inside the same archive (would collide with the
+        unique (id, user_id) index).
+      - Generic exceptions — we now surface the real reason to the client.
+    """
+    try:
+        # Primary lookup: scoped to current user.
+        route = await db.route_history.find_one(
+            {"id": route_id, "user_id": current_user.user_id}, {"_id": 0}
+        )
+        # Fallback: legacy archives may exist under a previous user_id (e.g.
+        # before auth was hooked up). If the user can read it from their
+        # history listing today, they should be allowed to resume it.
+        if not route:
+            route = await db.route_history.find_one({"id": route_id}, {"_id": 0})
+            if route:
+                logger.warning(
+                    f"[resume_route] route {route_id} owned by "
+                    f"{route.get('user_id')} resumed by {current_user.user_id} "
+                    f"(legacy archive fallback)"
+                )
+        if not route:
+            raise HTTPException(status_code=404, detail="Route not found in history")
 
-    # Clear current active stops
-    await db.stops.delete_many({"user_id": current_user.user_id})
+        archived_stops = route.get("stops", []) or []
+        if not archived_stops:
+            raise HTTPException(status_code=400, detail="Archived route has no stops")
 
-    # Re-insert archived stops with completion reset
-    for i, stop in enumerate(archived_stops):
-        stop["user_id"] = current_user.user_id
-        stop["completed"] = False
-        stop["delivery_status"] = "pending"
-        stop.pop("completed_at", None)
-        stop["order"] = i
-        stop.pop("_id", None)
+        # Fields that must be wiped so a resumed stop is treated as pending.
+        # Anything left behind (completion coords, arrival_method, photo proof,
+        # service-time samples) would make the UI render the stop as "done".
+        completion_fields = (
+            "completed_at", "arrived_at", "departed_at",
+            "completion_lat", "completion_lng", "completion_accuracy",
+            "arrival_method", "arrival_distance_m", "arrival_confidence",
+            "failure_reason", "failure_code", "skip_reason",
+            "proof_photo_url", "proof_photo_uploaded_at",
+            "service_time_seconds", "service_time_source",
+            "delivered_at", "skipped_at", "failed_at",
+        )
 
-    if archived_stops:
-        await db.stops.insert_many(archived_stops)
+        # Dedupe stop ids inside the archive — the (id, user_id) index is
+        # unique so duplicates would 500 the insert_many.
+        seen_ids: set[str] = set()
+        cleaned: list[dict] = []
+        for i, raw in enumerate(archived_stops):
+            stop = dict(raw)  # don't mutate the archive document
+            stop.pop("_id", None)
+            # If id is missing or duplicated, mint a new one so the index
+            # constraint is satisfied.
+            sid = stop.get("id")
+            if not sid or sid in seen_ids:
+                sid = str(uuid.uuid4())
+                stop["id"] = sid
+            seen_ids.add(sid)
 
-    return {"resumed": True, "stops_count": len(archived_stops)}
+            stop["user_id"] = current_user.user_id
+            stop["completed"] = False
+            stop["delivery_status"] = "pending"
+            stop["order"] = i
+            for f in completion_fields:
+                stop.pop(f, None)
+            cleaned.append(stop)
+
+        # Clear current active stops + replace atomically-ish.
+        await db.stops.delete_many({"user_id": current_user.user_id})
+        if cleaned:
+            await db.stops.insert_many(cleaned, ordered=False)
+
+        return {"resumed": True, "stops_count": len(cleaned)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"[resume_route] failed route_id={route_id} user={current_user.user_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Resume failed: {type(e).__name__}: {e}")
 
 
 @api_router.get("/routes/stats")

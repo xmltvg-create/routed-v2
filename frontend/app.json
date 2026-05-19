@@ -32,7 +32,7 @@
         "FOREGROUND_SERVICE_LOCATION"
       ],
       "package": "com.routedopt.app",
-      "versionCode": 78,
+      "versionCode": 79,
       "runtimeVersion": "1.0.0"
     },
     "androidStatusBar": {

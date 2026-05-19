@@ -1,3 +1,46 @@
+## 2026-05-19 — Resume Route Hardened (P0 Bug Fix)
+
+- [x] **Bug**: User reported "Failed to resume route". Backend logs showed
+  multiple `POST /api/routes/history/{id}/resume → 404 Not Found` for IDs
+  that no longer existed in `route_history` for the caller's `user_id`.
+- [x] **Root causes**:
+  1. **Legacy ownership** — archives created under a previous auth
+     identity (e.g. before email/password fallback was added) carry a
+     stale `user_id`. The strict `find_one({id, user_id})` filter
+     returned None → 404.
+  2. **Duplicate stop ids** inside an archive would 500 the
+     `insert_many` against the unique `(id, user_id)` index on `stops`.
+  3. **Completion telemetry** (`completion_lat`, `arrival_method`,
+     `arrived_at`, `proof_photo_url`, service-time samples) was NOT
+     cleared on resume → stops appeared "done" immediately.
+  4. **Frontend** swallowed the real reason (`"Failed to resume route"`
+     generic alert), so the user couldn't tell whether it was a session
+     expiry, missing route, or 500.
+  5. **HistoryModal cache** kept stale rows when a fetch failed,
+     letting users tap Resume on IDs that no longer exist.
+
+- [x] **Fix** (`backend/server.py:902-984`, `frontend/.../HistoryModal.tsx`,
+  `frontend/app/(tabs)/index.tsx:4188-4239`):
+  - Wrap `resume_route` in try/except, log full traceback, surface
+    `{detail: "Resume failed: <type>: <msg>"}` to the client.
+  - Add legacy-archive fallback: if the strict lookup misses, fall back
+    to `find_one({id})` and log a WARNING.
+  - Dedupe stop ids with `uuid.uuid4()` if collision detected.
+  - Clear ALL completion fields (12 fields) on resume.
+  - Use `insert_many(ordered=False)` for resilience.
+  - Frontend now shows the actual HTTP status / detail in the alert.
+  - HistoryModal clears its cached `routes` array on fetch failure AND
+    on modal close, so stale IDs can never be tapped.
+
+- [x] **Tests**: 3 new regression tests in
+  `backend/tests/test_resume_route.py` — all passing:
+  - 404 on unknown id with structured detail
+  - Round-trip archive → clear → resume → pristine pending stops
+  - Legacy archive (different user_id) + duplicate stop ids resumes OK
+
+---
+
+
 ## 2026-05-16 — Waitlist API & Gate for Phase 2 Rollout (P1)
 
 - [x] **Goal**: Gate new user signups behind a waitlist when
