@@ -73,6 +73,17 @@ Then **Play Console → Production → Create new release** → upload the `.aab
 - Bump `expo.version` AND `expo.android.versionCode` in `app.json` every release. Play Store rejects duplicate versionCodes.
 - `EXPO_PUBLIC_BACKEND_URL` in `frontend/.env` must point at **production**, not preview, before the build.
 
+### 🎯 runtimeVersion policy (set — auto-protects OTAs)
+
+`app.json` uses `"runtimeVersion": { "policy": "appVersion" }` at root + iOS + Android. This means:
+
+- The runtimeVersion auto-resolves to whatever `expo.version` is (currently `1.0.0`)
+- When you bump `expo.version` to e.g. `1.0.1` and ship a new AAB, that binary lives in its own OTA bucket
+- OTAs published AFTER the bump only reach devices running the new AAB — old devices are auto-skipped, no manual rollback needed
+- Prevents the "OTA pushed for a runtime that doesn't exist" footgun entirely
+
+If `predeploy.sh` ever warns `runtimeVersion is hardcoded`, someone reverted this — restore the policy object before the next binary build.
+
 ---
 
 ## ⚡ Step 3 — OTA Updates (95% of releases)

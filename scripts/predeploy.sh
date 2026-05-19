@@ -123,11 +123,24 @@ if [[ $ONLY_BACKEND -eq 0 ]]; then
   if [[ -f /app/frontend/app.json ]]; then
     VERSION=$(python3 -c "import json;d=json.load(open('/app/frontend/app.json'));print(d['expo'].get('version','?'))" 2>/dev/null)
     VCODE=$(python3 -c "import json;d=json.load(open('/app/frontend/app.json'));print(d['expo'].get('android',{}).get('versionCode','?'))" 2>/dev/null)
-    info "app.json: version=${VERSION}  android.versionCode=${VCODE}"
+    RTV=$(python3 -c "
+import json
+d=json.load(open('/app/frontend/app.json'))
+rv=d['expo'].get('runtimeVersion')
+if isinstance(rv,dict): print('policy:'+rv.get('policy','?'))
+else: print('literal:'+str(rv))
+" 2>/dev/null)
+    info "app.json: version=${VERSION}  android.versionCode=${VCODE}  runtimeVersion=${RTV}"
     if [[ "$VCODE" == "?" ]]; then
       fail "android.versionCode missing in app.json — Play Store will reject"
     else
       pass "app.json has version + versionCode"
+    fi
+    if [[ "$RTV" == "policy:appVersion" ]]; then
+      pass "runtimeVersion uses appVersion policy (OTAs auto-target correct binaries)"
+    elif [[ "$RTV" == literal:* ]]; then
+      warn "runtimeVersion is hardcoded (${RTV#literal:}) — must bump manually with every binary release"
+      info "  → recommend switching to {\"policy\": \"appVersion\"} in app.json"
     fi
   fi
 fi
