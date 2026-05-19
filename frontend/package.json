@@ -13,6 +13,8 @@
     "clean:garbage": "node ./scripts/clean-garbage.js",
     "prebuild:check": "CI=true expo prebuild --no-install --platform android --clean && rm -rf android",
     "deploy:preflight": "bash /app/ensure_eas_deps.sh && bash /app/scripts/gitignore-autoheal.sh && bash /app/scripts/pre-deploy-audit.sh && node ./scripts/clean-garbage.js && node ./scripts/check-props.js && node ./scripts/test-resume-navigation.js && node ./scripts/check-expo-deps.js && node ./scripts/check-backend-url.js && echo '[preflight] OK — safe to deploy'",
+    "predeploy": "bash /app/scripts/predeploy.sh",
+    "predeploy:fast": "bash /app/scripts/predeploy.sh --skip-tests",
     "eas:build:android": "yarn deploy:preflight && eas build --platform android --profile preview",
     "update:prod": "bash /app/scripts/gitignore-autoheal.sh && bash /app/scripts/pre-deploy-audit.sh && node ./scripts/eas-update-guarded.js --branch production --environment production --platform android",
     "postinstall": "node ./scripts/clean-garbage.js || true && node ./scripts/patch-hermesc-arm64.js || true",

@@ -1,10 +1,28 @@
 #!/usr/bin/env sh
-# Pre-push hook: run the frontend deploy preflight so SDK/dep drift and
-# mixed-lockfile state are caught locally before they break a cloud build.
+# Pre-push hook — runs BEFORE every `git push`.
 #
-# Bypass for emergency push:  git push --no-verify
+# Two-layer defence:
+#   1. yarn deploy:preflight  (legacy chain — frontend SDK / dep drift
+#                              / lockfile / .gitignore guard)
+#   2. predeploy.sh --skip-tests (comprehensive sweep — hardcoded
+#                                 secret scan, eas.json sanity, env
+#                                 vars, backend reachability, git
+#                                 status. Pytest skipped here for
+#                                 speed; run `yarn predeploy` manually
+#                                 when you want the full suite.)
+#
+# If anything fails the push is blocked. Emergency bypass:
+#   git push --no-verify
+#   (use only when you know exactly why — usually never)
 
 set -e
-echo "[pre-push] running frontend deploy:preflight…"
-cd "$(git rev-parse --show-toplevel)/frontend"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+echo "[pre-push] (1/2) frontend deploy:preflight…"
+cd "${REPO_ROOT}/frontend"
 yarn --silent deploy:preflight
+
+echo "[pre-push] (2/2) bulletproof predeploy sweep (no pytest)…"
+bash "${REPO_ROOT}/scripts/predeploy.sh" --skip-tests
+
+echo "[pre-push] ✓ all checks passed — safe to push"
