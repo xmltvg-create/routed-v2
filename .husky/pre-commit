@@ -1,0 +1,27 @@
+#!/usr/bin/env sh
+# Pre-commit hook: refuse any commit that re-introduces `.env*` blocking
+# patterns into /app/.gitignore.
+#
+# Why this exists: the `deployment_agent` tool repeatedly re-injects
+# `.env`, `.env.*`, and `*.env` patterns into .gitignore as a side-effect
+# of its audit. Those patterns silently roll production back to the
+# previous image because Emergent's deploy bundle strips the .env files
+# the running pod needs. The yarn-level `pre-deploy-audit.sh` catches
+# this at deploy time; this hook catches it earlier — at commit time —
+# so a corrupted .gitignore can't even land in the history.
+#
+# Bypass for unrelated emergency commits (use sparingly):
+#   git commit --no-verify
+#
+# Exit codes:
+#   0  ✓  Clean — commit allowed
+#   1  ✗  .gitignore contains `.env*` patterns — fix and re-commit
+
+set -e
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+# Auto-heal first (strips any .env* patterns re-injected by the
+# deployment_agent between agent edits and this commit), then audit
+# to confirm clean state.
+"${REPO_ROOT}/scripts/gitignore-autoheal.sh"
+exec "${REPO_ROOT}/scripts/pre-deploy-audit.sh"

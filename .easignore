@@ -1,0 +1,57 @@
+# .easignore (repo-root) — files NOT uploaded to EAS Build context.
+# The mobile APK build only needs /app/frontend; it does not need any of
+# the backend's OSRM routing data, OSM extracts, Python caches, or
+# OSRM C++ source tree. These would otherwise add ~800 MB to every
+# upload and cause "context deadline exceeded" timeouts.
+
+# ── OSRM routing data (~500 MB, regenerated from .osm.pbf on prod pods) ──
+queensland.osm.pbf
+queensland.osrm
+queensland.osrm.*
+
+# ── OSRM C++ source tree (~169 MB; built into a binary on prod pods) ──
+osrm-backend/
+
+# ── Backend Python (not needed in the mobile build) ──
+backend/__pycache__/
+backend/**/__pycache__/
+backend/.pytest_cache/
+backend/.ruff_cache/
+**/__pycache__/
+*.pyc
+*.pyo
+
+# ── Test reports / memory / dev tooling ──
+test_reports/
+memory/
+test_result.md
+
+# ── Caches ──
+.cache/
+.metro-cache/
+frontend/.metro-cache/
+frontend/.expo/
+frontend/.expo-shared/
+frontend/node_modules/
+
+# ── Logs ──
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# ── Editor / OS cruft ──
+.DS_Store
+Thumbs.db
+*.swp
+
+# ── Git internals ──
+.git/
+.github/
+
+# ── Archive blobs (defensive) ──
+*.zip
+*.tar.gz
+*.tar
+*.tgz
+*.pack

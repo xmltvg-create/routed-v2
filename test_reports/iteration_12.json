@@ -1,0 +1,78 @@
+{
+  "summary": "Stop ID Stability Regression Testing Complete. All 17 tests passed. The fix for Stop ID mutation bug (removing default_factory from Stop.id) is working correctly. All CRUD endpoints return stable IDs, no ValidationErrors occur, and IDs remain unchanged across all operations.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_stop_id_stability.py",
+    "/app/test_reports/pytest/pytest_results_iter12.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Stop model (line 151): id: str is now required with no default_factory - CORRECT",
+    "create_stop (line 606): Explicitly generates id=str(uuid.uuid4()) - CORRECT",
+    "All Stop(**doc) reconstructions work because MongoDB docs have the id field",
+    "No ValidationErrors occur on any endpoint - verified by tests"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_stop_id_stability.py"
+  ],
+  "success_rate": {
+    "backend": "100% (17/17 tests passed)",
+    "frontend": "N/A - Backend only testing requested"
+  },
+  "test_credentials": "DEV_MODE auth (no credentials needed)",
+  "seed_data_creation": "Tests create and cleanup their own test data (TEST_ prefixed stops)",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Stop ID stability bug fix verified. Test file at /app/backend/tests/test_stop_id_stability.py covers all CRUD endpoints and ID stability scenarios. The Stop model now has id: str (required, no default) and uuid generation happens only in creation endpoints.",
+  "tests_executed": {
+    "TestStopIDStability": {
+      "test_get_stops_returns_stable_ids": "PASS - GET /api/stops returns stops with valid IDs, no _id field",
+      "test_get_stops_twice_returns_identical_ids": "PASS - IDs stable across multiple fetches",
+      "test_create_stop_generates_uuid": "PASS - POST /api/stops generates valid UUID",
+      "test_update_stop_preserves_id": "PASS - PUT /api/stops/{id} preserves ID",
+      "test_update_stop_notes_preserves_id": "PASS - Update notes preserves ID",
+      "test_delete_stop_returns_success": "PASS - DELETE /api/stops/{id} works correctly",
+      "test_complete_stop_preserves_id": "PASS - POST /api/stops/{id}/complete preserves ID",
+      "test_uncomplete_stop_preserves_id": "PASS - POST /api/stops/{id}/uncomplete preserves ID",
+      "test_complete_then_uncomplete_preserves_id": "PASS - Complete/uncomplete cycle preserves ID",
+      "test_optimize_returns_stable_ids": "PASS - POST /api/optimize (two_opt) preserves all IDs",
+      "test_car_next_stops_returns_valid_ids": "PASS - GET /api/car/next-stops returns valid IDs",
+      "test_reorder_stops_preserves_ids": "PASS - POST /api/stops/reorder preserves IDs",
+      "test_regeocode_stop_preserves_id": "PASS - POST /api/stops/{id}/regeocode preserves ID"
+    },
+    "TestStopIDStabilityEdgeCases": {
+      "test_multiple_reads_same_stop": "PASS - Same stop ID stable across 5 reads",
+      "test_no_validation_error_on_get_stops": "PASS - No ValidationError on GET /api/stops",
+      "test_car_stop_action_preserves_id": "PASS - POST /api/car/stop-action preserves ID"
+    },
+    "TestCleanup": {
+      "test_cleanup_test_stops": "PASS - Cleaned up test data"
+    }
+  },
+  "verified_endpoints": [
+    "GET /api/stops - Returns all stops with stable IDs",
+    "POST /api/stops - Creates stop with generated UUID",
+    "PUT /api/stops/{stop_id} - Updates stop, preserves ID",
+    "DELETE /api/stops/{stop_id} - Deletes stop successfully",
+    "POST /api/stops/{stop_id}/complete - Marks complete, preserves ID",
+    "POST /api/stops/{stop_id}/uncomplete - Reverts, preserves ID",
+    "POST /api/optimize - Optimizes route, preserves all IDs",
+    "GET /api/car/next-stops - Returns incomplete stops with valid IDs",
+    "POST /api/stops/reorder - Reorders stops, preserves IDs",
+    "POST /api/stops/{stop_id}/regeocode - Regeocodes, preserves ID",
+    "POST /api/car/stop-action - Car action, preserves ID"
+  ],
+  "bug_fix_verification": {
+    "original_bug": "Stop IDs were mutating/regenerating on reads due to Pydantic default_factory",
+    "fix_applied": "1) Made id required in Stop model (no default_factory), 2) Added explicit uuid.uuid4() generation only in creation endpoints",
+    "verification_result": "PASS - All tests confirm IDs are stable across all operations"
+  }
+}

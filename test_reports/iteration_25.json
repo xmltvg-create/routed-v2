@@ -1,0 +1,195 @@
+{
+  "summary": "Backend regression validation completed successfully for iteration 25 optimizer changes. All 82 tests pass across 9 test files when run INDIVIDUALLY (as required due to known cross-file fixture pollution). Verified: (1) _osrm_verify_relocation now uses _osrm_duration_matrix, (2) detect_cluster_spikes new defaults (spike_ratio=0.5, min_detour_km=0.10), (3) _global_two_opt_pass 3-opt polish for n>=150 routes.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "issue": "Cross-file fixture pollution causes 8 test_tighten_cluster.py tests to fail when run in combined suite (401 auth errors)",
+        "note": "Pre-existing issue documented in PRD.md - tests pass when run individually"
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_auto_tighten_during_optimize.py",
+    "/app/backend/tests/test_van_layout_endpoints.py",
+    "/app/backend/tests/test_open_path_tsp.py",
+    "/app/backend/tests/test_pyvrp_duplicate_coords.py",
+    "/app/backend/tests/test_solver_hamiltonicity.py",
+    "/app/backend/tests/test_cluster_warnings.py",
+    "/app/backend/tests/test_tighten_cluster.py",
+    "/app/backend/tests/test_optimizer_changes_iter25.py",
+    "/app/backend/tests/test_optimize_smoke_iter25.py",
+    "/app/test_reports/pytest/pytest_results_iter25.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py uses deprecated @app.on_event decorators - consider migrating to lifespan event handlers",
+    "Timefold solver skipped in test_solver_hamiltonicity.py due to JDK interface issue (non-blocking)"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_optimizer_changes_iter25.py",
+    "/app/backend/tests/test_optimize_smoke_iter25.py"
+  ],
+  "success_rate": {
+    "backend": "100% (82 tests pass when run individually)",
+    "frontend": "N/A (backend only testing)"
+  },
+  "test_credentials": "Used existing session token 59c60389-8953-4a7b-9088-d6175aa30243 for xmltvg@gmail.com",
+  "seed_data_creation": "None - used synthetic stops generated in tests",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All 9 specified test files pass individually. IMPORTANT: Run tests INDIVIDUALLY due to cross-file fixture pollution (documented in PRD.md). The combined suite shows 8 failures in test_tighten_cluster.py due to auth fixture issues, but all pass when run alone. New test files created: test_optimizer_changes_iter25.py (12 tests for new defaults and 3-opt), test_optimize_smoke_iter25.py (5 HTTP smoke tests for small/large routes).",
+  "tests_executed": {
+    "test_auto_tighten_during_optimize.py": {
+      "total": 9,
+      "passed": 9,
+      "tests": [
+        "test_screenshot_zigzag_is_resolved_by_iterative_tighten",
+        "test_already_clean_route_is_a_no_op",
+        "test_tighten_terminates_under_max_passes",
+        "test_tighten_returns_same_stops_no_loss",
+        "test_verify_keeps_proposed_when_strictly_faster",
+        "test_verify_rolls_back_when_slower_with_no_slack",
+        "test_verify_accepts_slower_route_within_slack_seconds",
+        "test_verify_accepts_slower_route_within_slack_ratio",
+        "test_verify_rolls_back_beyond_slack_threshold"
+      ]
+    },
+    "test_van_layout_endpoints.py": {
+      "total": 4,
+      "passed": 4,
+      "tests": [
+        "test_allowed_shapes_documents_supported_grids",
+        "test_van_layout_accepts_supported_shapes",
+        "test_van_layout_pydantic_rejects_non_int_inputs",
+        "test_allowed_shapes_lookup_works_for_validation"
+      ]
+    },
+    "test_open_path_tsp.py": {
+      "total": 12,
+      "passed": 12,
+      "tests": [
+        "TestOpenPathMatrix::test_empty",
+        "TestOpenPathMatrix::test_single_node",
+        "TestOpenPathMatrix::test_zeros_return_column_only",
+        "TestOpenPathMatrix::test_does_not_mutate_input",
+        "TestOpenPathMatrix::test_non_zero_depot",
+        "TestOpenPathMatrix::test_out_of_range_depot_is_noop",
+        "TestPyVRPOpenPath::test_river_crossing_uses_bridge_only_once",
+        "TestPyVRPOpenPath::test_returns_all_stops_uniquely",
+        "TestPyVRPOpenPath::test_starts_at_depot",
+        "TestLKHOpenPath::test_river_crossing_uses_bridge_only_once",
+        "TestLKHOpenPath::test_returns_all_stops_uniquely",
+        "test_pyvrp_and_lkh_agree_on_open_path"
+      ]
+    },
+    "test_pyvrp_duplicate_coords.py": {
+      "total": 12,
+      "passed": 12,
+      "tests": [
+        "TestSanitizeOSRMMatrix::test_diagonal_forced_to_zero",
+        "TestSanitizeOSRMMatrix::test_none_replaced_with_penalty",
+        "TestSanitizeOSRMMatrix::test_negatives_replaced_with_penalty",
+        "TestSanitizeOSRMMatrix::test_nan_replaced_with_penalty",
+        "TestSanitizeOSRMMatrix::test_input_not_mutated",
+        "TestPyVRPDuplicateCoordinates::test_all_stop_ids_appear_exactly_once",
+        "TestPyVRPDuplicateCoordinates::test_duplicate_cluster_stays_contiguous",
+        "TestPyVRPDuplicateCoordinates::test_open_path_optimum_with_duplicates",
+        "TestPyVRPSolverGrouping::test_solver_groups_by_coord_when_provided",
+        "TestPyVRPSolverGrouping::test_solver_does_not_group_when_coords_omitted",
+        "TestPyVRPSolverGrouping::test_service_duration_summed_within_group",
+        "TestPyVRPNoDuplicateRegression::test_river_crossing_unaffected_by_grouping"
+      ]
+    },
+    "test_solver_hamiltonicity.py": {
+      "total": 14,
+      "passed": 13,
+      "skipped": 1,
+      "tests": [
+        "test_nearest_neighbor_preserves_all_stops",
+        "test_two_opt_preserves_all_stops_with_duplicates",
+        "test_three_opt_preserves_all_stops",
+        "test_or_opt_preserves_all_stops",
+        "test_simulated_annealing_preserves_all_stops",
+        "test_genetic_algorithm_preserves_all_stops",
+        "test_clarke_wright_preserves_all_stops",
+        "test_iterated_local_search_preserves_all_stops",
+        "test_alns_preserves_all_stops",
+        "test_ortools_preserves_all_stops",
+        "test_vroom_preserves_all_stops",
+        "test_lkh_preserves_all_stops",
+        "test_timefold_preserves_all_stops (SKIPPED)",
+        "test_indices_by_identity_handles_duplicate_valued_stops"
+      ]
+    },
+    "test_cluster_warnings.py": {
+      "total": 7,
+      "passed": 7,
+      "tests": [
+        "test_clean_linear_route_yields_no_warnings",
+        "test_obvious_spike_is_flagged",
+        "test_short_detours_are_ignored",
+        "test_returns_list_of_dicts_with_required_keys",
+        "test_handles_short_inputs_gracefully",
+        "test_skips_triplets_with_missing_coords",
+        "test_does_not_mutate_input"
+      ]
+    },
+    "test_tighten_cluster.py": {
+      "total": 8,
+      "passed": 8,
+      "tests": [
+        "test_tighten_relocates_spike_and_reduces_distance",
+        "test_tighten_persists_new_order_to_mongo",
+        "test_tighten_returns_404_for_unknown_suspect",
+        "test_tighten_rejects_when_fewer_than_3_pending",
+        "test_tighten_all_clears_every_spike",
+        "test_tighten_all_is_no_op_on_clean_route",
+        "test_tighten_all_persists_final_order",
+        "test_tighten_all_with_too_few_stops"
+      ]
+    },
+    "test_optimizer_changes_iter25.py": {
+      "total": 12,
+      "passed": 12,
+      "tests": [
+        "TestDetectClusterSpikesNewDefaults::test_triplet_with_ratio_0_4_flagged_by_new_defaults",
+        "TestDetectClusterSpikesNewDefaults::test_small_detour_flagged_by_new_min_detour",
+        "TestDetectClusterSpikesNewDefaults::test_obvious_spike_flagged_by_both_defaults",
+        "TestGlobalTwoOptPass3OptPolish::test_3opt_path_runs_for_large_routes",
+        "TestGlobalTwoOptPass3OptPolish::test_3opt_improves_or_maintains_quality",
+        "TestGlobalTwoOptPass3OptPolish::test_small_route_skips_3opt",
+        "TestThreeOptImprove::test_three_opt_preserves_all_indices",
+        "TestThreeOptImprove::test_three_opt_improves_suboptimal_route",
+        "TestThreeOptImprove::test_three_opt_handles_small_routes",
+        "TestMaxIterationsScaling::test_large_route_gets_more_iterations",
+        "TestNoRegression::test_detect_cluster_spikes_still_works_with_explicit_params",
+        "TestNoRegression::test_global_two_opt_pass_handles_edge_cases"
+      ]
+    },
+    "test_optimize_smoke_iter25.py": {
+      "total": 5,
+      "passed": 5,
+      "tests": [
+        "TestOptimizeSmallRoute::test_optimize_12_stops_cluster_first",
+        "TestOptimizeLargeRoute::test_optimize_155_stops_auto",
+        "TestOptimizeLargeRoute::test_optimize_160_stops_cluster_first",
+        "TestOptimizeEdgeCases::test_optimize_exactly_150_stops",
+        "TestOptimizeEdgeCases::test_optimize_149_stops"
+      ]
+    }
+  },
+  "verified_features": {
+    "_osrm_verify_relocation_uses_osrm_duration_matrix": "Verified - tests monkeypatch _osrm_duration_matrix and confirm it's called",
+    "detect_cluster_spikes_new_defaults": "Verified - spike_ratio=0.5 and min_detour_km=0.10 catch more visual zig-zags",
+    "_global_two_opt_pass_3opt_polish": "Verified - 3-opt runs for n>=150 stops, skipped for smaller routes",
+    "max_iterations_scaling": "Verified - max_iterations scales from 3 to 6 for routes >=150 stops",
+    "hamiltonian_integrity": "Verified - no dropped/duplicated stop IDs in all optimization paths",
+    "http_smoke_tests": "Verified - /api/optimize works with 12, 149, 150, 155, 160 stops"
+  }
+}

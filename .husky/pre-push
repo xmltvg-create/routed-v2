@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+# Pre-push hook: run the frontend deploy preflight so SDK/dep drift and
+# mixed-lockfile state are caught locally before they break a cloud build.
+#
+# Bypass for emergency push:  git push --no-verify
+
+set -e
+echo "[pre-push] running frontend deploy:preflight…"
+cd "$(git rev-parse --show-toplevel)/frontend"
+yarn --silent deploy:preflight

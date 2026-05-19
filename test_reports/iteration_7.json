@@ -1,0 +1,53 @@
+{
+  "summary": "Address Update & Re-geocode Feature Testing Complete. All backend API tests pass (9/9). Frontend UI verified: Stop Details modal shows editable address input, Save Address button, Re-geocode button. Save Address marks stop as needs-fix (badge visible in sidebar). Re-geocode endpoint works correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Web app console",
+        "issues": ["'shadow*' style props deprecated warnings (cosmetic)", "useNativeDriver not supported warning (cosmetic, JS fallback used)"]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_regeocode_address.py",
+    "/app/test_reports/pytest/pytest_results_iter7.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "index.tsx (lines 1500-1545): handleSaveStopAddressOnly correctly updates address via updateStop, sets geocode_needs_fix=true and geocode_status='pending_regeocode'",
+    "index.tsx (lines 1547-1587): handleRegeocodeSelectedStop correctly calls POST /api/stops/{id}/regeocode, updates modal state on success/failure",
+    "index.tsx (lines 2027-2075): Modal UI correctly renders address input (testID='stop-address-edit-input'), Save Address button (testID='stop-address-save-button'), Re-geocode button (testID='stop-address-regeocode-button')",
+    "index.tsx (lines 2036-2041): Needs-fix badge renders when geocode_metadata.geocode_needs_fix=true",
+    "Sidebar.tsx (lines 333-339 & 387-393): Needs-fix badge correctly displays in stop list items when geocode_metadata.geocode_needs_fix=true",
+    "server.py (lines 678-752): POST /api/stops/{stop_id}/regeocode endpoint correctly re-geocodes address, preserves old coordinates on failure, clears needs_fix on success"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_regeocode_address.py"
+  ],
+  "success_rate": {
+    "backend": "100% (9/9 tests passed)",
+    "frontend": "100% (All UI controls verified)"
+  },
+  "test_credentials": "DEV_MODE auth (no credentials needed)",
+  "seed_data_creation": "Test stops created with TEST_ prefix during pytest, cleaned up after each test class",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Address update and re-geocode feature fully tested. The 'needs-fix' badge is visible in sidebar after Save Address. Re-geocode button triggers geocoding API. All testIDs are present: stop-address-edit-input, stop-address-save-button, stop-address-regeocode-button, stop-needs-geocode-fix-badge. Frontend tested via Playwright browser automation.",
+  "feature_checklist": {
+    "stop_modal_editable_address_input": "PASS - testID='stop-address-edit-input' present and functional",
+    "save_address_button": "PASS - testID='stop-address-save-button' present and functional",
+    "save_address_updates_address_not_coords": "PASS - Backend test confirms address changes but coordinates unchanged",
+    "save_address_sets_needs_fix": "PASS - geocode_metadata.geocode_needs_fix=true after save",
+    "regeocode_button": "PASS - testID='stop-address-regeocode-button' present and functional",
+    "regeocode_updates_coords_on_success": "PASS - Backend test confirms coordinates update on successful geocode",
+    "regeocode_keeps_old_coords_on_failure": "PASS - Backend test confirms old coordinates preserved when geocoding fails",
+    "regeocode_clears_needs_fix_on_success": "PASS - geocode_needs_fix=false after successful regeocode",
+    "sidebar_needs_fix_badge": "PASS - Badge visible in sidebar for stops with geocode_needs_fix=true"
+  }
+}

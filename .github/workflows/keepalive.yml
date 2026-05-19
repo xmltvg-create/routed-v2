@@ -1,0 +1,58 @@
+name: keepalive
+
+# External keep-alive pinger.
+#
+# Why: Emergent's production backend can idle-sleep after a stretch of no
+# ingress traffic, which gives drivers in the field a 30-60s cold-start on the
+# first request of their shift. GitHub Actions runs this workflow on a 4-minute
+# cron (outside the container), hitting `/api/health` so the platform's idle
+# timer never fires.
+#
+# Setup (one-time, in GitHub repo Settings → Secrets and variables → Actions):
+#   1. Add secret `PROD_BACKEND_URL` with the *production* URL, e.g.
+#      https://<your-app>.emergent.host
+#      (NOT the preview URL — that one is expected to sleep.)
+#
+# Cost: zero. GitHub Actions free tier gives 2000 minutes/month; each run
+# takes ~5 seconds → ~1.25 min/day → ~38 min/month. Negligible.
+
+on:
+  schedule:
+    # Every 4 minutes. GitHub sometimes delays cron by a few minutes under
+    # load, so 4-min cadence tolerates their SLA while staying under every
+    # reasonable idle-timeout window.
+    - cron: '*/4 * * * *'
+  workflow_dispatch: {}  # allow manual trigger from the Actions tab
+
+concurrency:
+  group: keepalive
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Ping /api/health
+        env:
+          URL: ${{ secrets.PROD_BACKEND_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${URL:-}" ]; then
+            echo "::error::PROD_BACKEND_URL secret is not set. Skipping."
+            exit 1
+          fi
+          # Retry twice with backoff in case of a transient blip; we don't
+          # want GitHub to email on flakes. A 200 from /api/health is the
+          # only success signal.
+          for attempt in 1 2 3; do
+            code=$(curl -sS -o /tmp/body -w '%{http_code}' --max-time 30 "$URL/api/health" || echo "000")
+            echo "Attempt $attempt: HTTP $code"
+            if [ "$code" = "200" ]; then
+              cat /tmp/body
+              exit 0
+            fi
+            sleep $((attempt * 5))
+          done
+          echo "::error::/api/health did not return 200 after 3 attempts"
+          exit 1

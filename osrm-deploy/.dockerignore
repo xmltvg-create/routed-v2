@@ -1,0 +1,8 @@
+# Don't ship anything from the rest of the repo into the OSRM image.
+# Fly's builder uploads all of `/app/osrm-deploy/` by default, which is
+# already minimal — but make this explicit so accidental moves of files
+# into this folder don't bloat the build context.
+*
+!Dockerfile
+!fly.toml
+!README.md

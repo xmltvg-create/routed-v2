@@ -1,0 +1,15 @@
+{
+  "layers": {
+    "building": { "minzoom": 13, "maxzoom": 14 }
+  },
+  "settings": {
+    "minzoom": 13,
+    "maxzoom": 14,
+    "basezoom": 14,
+    "include_ids": false,
+    "name": "QLD Buildings",
+    "version": "0.1",
+    "description": "Queensland building tiles with rich height metadata",
+    "compress": "gzip"
+  }
+}

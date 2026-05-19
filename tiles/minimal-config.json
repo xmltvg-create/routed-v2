@@ -1,0 +1,14 @@
+{
+  "layers": {
+    "building": { "minzoom": 13, "maxzoom": 14 }
+  },
+  "settings": {
+    "minzoom": 13,
+    "maxzoom": 14,
+    "basezoom": 14,
+    "include_ids": false,
+    "compress": "gzip",
+    "name": "QLD Buildings",
+    "version": "1.0"
+  }
+}

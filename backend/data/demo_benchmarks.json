@@ -1,0 +1,162 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-04-28T16:19:32.233772+00:00",
+  "scenario": {
+    "stop_count": 50,
+    "naive_km": 174.7,
+    "naive_minutes": 306.0
+  },
+  "best_km": 332.8,
+  "results": [
+    {
+      "id": "pyvrp",
+      "name": "PyVRP HGS",
+      "family": "Genetic / hybrid",
+      "ok": true,
+      "total_km": 332.77,
+      "total_minutes": 0.0,
+      "runtime_ms": 14187,
+      "algorithm_used": "pyvrp",
+      "gap_pct": 0.0
+    },
+    {
+      "id": "ils",
+      "name": "Iterated Local Search",
+      "family": "Local search",
+      "ok": true,
+      "total_km": 375.92,
+      "total_minutes": 0.0,
+      "runtime_ms": 26061,
+      "algorithm_used": "ils",
+      "gap_pct": 12.97
+    },
+    {
+      "id": "genetic",
+      "name": "Genetic Algorithm",
+      "family": "Metaheuristic",
+      "ok": true,
+      "total_km": 381.18,
+      "total_minutes": 0.0,
+      "runtime_ms": 38423,
+      "algorithm_used": "genetic",
+      "gap_pct": 14.55
+    },
+    {
+      "id": "clarke_wright",
+      "name": "Clarke-Wright Savings",
+      "family": "Construction",
+      "ok": true,
+      "total_km": 381.3,
+      "total_minutes": 0.0,
+      "runtime_ms": 12704,
+      "algorithm_used": "clarke_wright",
+      "gap_pct": 14.58
+    },
+    {
+      "id": "two_opt",
+      "name": "2-Opt",
+      "family": "Local search (classical)",
+      "ok": true,
+      "total_km": 381.45,
+      "total_minutes": 0.0,
+      "runtime_ms": 10893,
+      "algorithm_used": "two_opt",
+      "gap_pct": 14.63
+    },
+    {
+      "id": "ortools",
+      "name": "OR-Tools (Google)",
+      "family": "Constraint programming",
+      "ok": true,
+      "total_km": 383.75,
+      "total_minutes": 0.0,
+      "runtime_ms": 23478,
+      "algorithm_used": "ortools",
+      "gap_pct": 15.32
+    },
+    {
+      "id": "alns",
+      "name": "ALNS Hybrid",
+      "family": "Adaptive large neighbourhood",
+      "ok": true,
+      "total_km": 384.17,
+      "total_minutes": 0.0,
+      "runtime_ms": 27897,
+      "algorithm_used": "alns",
+      "gap_pct": 15.45
+    },
+    {
+      "id": "nearest_neighbor",
+      "name": "Nearest Neighbour",
+      "family": "Greedy construction",
+      "ok": true,
+      "total_km": 388.68,
+      "total_minutes": 0.0,
+      "runtime_ms": 11730,
+      "algorithm_used": "nearest_neighbor",
+      "gap_pct": 16.8
+    },
+    {
+      "id": "generoute",
+      "name": "Generoute",
+      "family": "Construction (CW variant)",
+      "ok": true,
+      "total_km": 388.68,
+      "total_minutes": 0.0,
+      "runtime_ms": 14905,
+      "algorithm_used": "generoute",
+      "gap_pct": 16.8
+    },
+    {
+      "id": "mapbox",
+      "name": "Mapbox Optimization API",
+      "family": "Cloud (Mapbox)",
+      "ok": true,
+      "total_km": 388.68,
+      "total_minutes": 0.0,
+      "runtime_ms": 33869,
+      "algorithm_used": "mapbox",
+      "gap_pct": 16.8
+    },
+    {
+      "id": "vroom",
+      "name": "VROOM",
+      "family": "Local search (binary)",
+      "ok": true,
+      "total_km": 393.7,
+      "total_minutes": 0.0,
+      "runtime_ms": 12264,
+      "algorithm_used": "vroom",
+      "gap_pct": 18.31
+    },
+    {
+      "id": "three_opt",
+      "name": "3-Opt",
+      "family": "Local search (classical)",
+      "ok": true,
+      "total_km": 405.7,
+      "total_minutes": 0.0,
+      "runtime_ms": 11340,
+      "algorithm_used": "three_opt",
+      "gap_pct": 21.92
+    },
+    {
+      "id": "simulated_annealing",
+      "name": "Simulated Annealing",
+      "family": "Metaheuristic",
+      "ok": false,
+      "error": "ReadTimeout: ",
+      "runtime_ms": 60060,
+      "gap_pct": null
+    },
+    {
+      "id": "cluster_first",
+      "name": "Cluster-First / Route-Second",
+      "family": "Two-stage",
+      "ok": false,
+      "error": "ReadTimeout: ",
+      "runtime_ms": 60060,
+      "gap_pct": null
+    }
+  ]
+}

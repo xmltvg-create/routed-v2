@@ -1,0 +1,116 @@
+{
+  "summary": "DeliveryMap Component Testing - All features working. New react-map-gl (MapLibre fork) map component at /map-demo renders correctly with 55 stops as WebGL circle markers, route line as LineString, GPS simulation with camera follow, and all control buttons functional. Backend APIs (/api/stops, /api/directions, /api/map-test) all return 200. Main app at / also loads correctly with 55 stops in sidebar.",
+  "timestamp": "2026-04-10T12:20:00Z",
+  "total_tests": 9,
+  "passed": 9,
+  "failed": 0,
+  "tests": [
+    {
+      "name": "GET /api/stops returns 200",
+      "status": "PASS",
+      "detail": "Returns list of 55 stops with required fields (id, latitude, longitude, order, address)"
+    },
+    {
+      "name": "GET /api/directions returns 200",
+      "status": "PASS",
+      "detail": "Returns route geometry as LineString with 1002 coordinate points"
+    },
+    {
+      "name": "GET /api/map-test returns HTML",
+      "status": "PASS",
+      "detail": "Returns standalone HTML test page with MapLibre"
+    },
+    {
+      "name": "GET /api/health returns 200",
+      "status": "PASS",
+      "detail": "Health check passes with status=healthy"
+    },
+    {
+      "name": "DeliveryMap renders on /map-demo",
+      "status": "PASS",
+      "detail": "Map loads with MapLibre tiles, 55 stops visible as numbered circles"
+    },
+    {
+      "name": "Route line renders as LineString",
+      "status": "PASS",
+      "detail": "Blue route line connects all stops"
+    },
+    {
+      "name": "Simulate GPS button works",
+      "status": "PASS",
+      "detail": "Starts GPS simulation, button changes to 'Stop Sim'"
+    },
+    {
+      "name": "Follow mode tracks driver",
+      "status": "PASS",
+      "detail": "Camera follows driver position with 3D perspective (pitch: 65°)"
+    },
+    {
+      "name": "Fit Route button works",
+      "status": "PASS",
+      "detail": "Fits camera to show all stops"
+    }
+  ],
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "/map-demo",
+        "issues": ["Font loading warning: 'Open Sans Bold' 404 from openfreemap.org - map renders with local fallback fonts (non-blocking)"]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_map_demo_apis.py",
+    "/app/test_reports/pytest/pytest_results_iter21.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "DeliveryMap component correctly uses WebGL layers (no HTML Markers) - follows guideline #1",
+    "Uncontrolled camera state via mapRef with jumpTo/flyTo - follows guideline #2",
+    "Fixed stop IDs in GeoJSON (feature.id === stop.id) - follows guideline #3",
+    "No multiplier badges on map (only in UI cards) - follows guideline #4",
+    "Route line as single LineString source/layer - follows guideline #5",
+    "GPS simulation moves along route at 500ms intervals skipping every 3 points",
+    "Camera follow uses mapRef.current.jumpTo() from useEffect on driverLocation changes",
+    "Console warning 'Expected value to be of type number, but found null' - likely from initial render before data loads (non-blocking)"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_map_demo_apis.py"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "test_credentials": "DEV_MODE=True uses dev-user-123, no credentials needed",
+  "seed_data_creation": "Using existing 55 stops from database",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "DeliveryMap component at /app/frontend/src/components/DeliveryMap.tsx fully functional. Demo page at /map-demo works with all features: 55 stops as WebGL circles, route line, GPS simulation, camera follow, fit route. Backend APIs /api/stops, /api/directions, /api/map-test all working. Main app at / also loads correctly. Minor font loading warning from openfreemap.org (non-blocking, uses local fallback).",
+  "key_findings": {
+    "deliverymap_component": "Working - renders with react-map-gl v8.1.0 + maplibre-gl v5.22.0",
+    "stops_rendering": "Working - 55 stops as numbered WebGL circle markers",
+    "route_line": "Working - blue LineString with 1002 coordinate points",
+    "gps_simulation": "Working - moves driver puck along route at 500ms intervals",
+    "camera_follow": "Working - jumpTo with pitch:65° and bearing based on heading",
+    "fit_route": "Working - fitBounds to show all stops",
+    "follow_toggle": "Working - switches between ON/OFF states",
+    "main_app": "Working - loads at / with 55 stops in sidebar"
+  },
+  "mocked_api": {
+    "has_mocked_apis": true,
+    "mocked_apis_list": ["Authentication is MOCKED via DEV_MODE env var (dev-user-123)"]
+  },
+  "performance_guidelines_compliance": {
+    "guideline_1_webgl_only": "PASS - Uses <Layer type='circle'> and <Layer type='symbol'>, no HTML Markers",
+    "guideline_2_uncontrolled_camera": "PASS - MapLibre owns viewport, programmatic moves via mapRef.jumpTo/flyTo",
+    "guideline_3_fixed_stop_ids": "PASS - feature.id === stop.id (string), never mutated",
+    "guideline_4_no_multiplier_badges": "PASS - x5 grouping only in UI stop cards, not on map",
+    "guideline_5_single_route_line": "PASS - Single stable <Source>/<Layer type='line'>, data prop swaps only"
+  }
+}

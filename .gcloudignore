@@ -1,0 +1,52 @@
+# .gcloudignore — files NOT uploaded to Google Cloud Build context.
+# Mirrors .easignore so the EAS APK build (Step #5 - "eas-apk-build")
+# does not waste time/timeout on ~800 MB of OSRM routing data that
+# is irrelevant to the mobile app build.
+
+# OSRM data + source (irrelevant to mobile build, ~700 MB)
+queensland.osm.pbf
+queensland.osrm
+queensland.osrm.*
+osrm-backend/
+
+# Python caches
+**/__pycache__/
+*.pyc
+*.pyo
+.ruff_cache/
+.pytest_cache/
+
+# Test reports / memory / dev tooling
+test_reports/
+memory/
+test_result.md
+
+# Caches
+.cache/
+.metro-cache/
+frontend/.metro-cache/
+frontend/.expo/
+frontend/.expo-shared/
+frontend/node_modules/
+
+# Logs
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+
+# Internals
+.git/
+.github/
+
+# Archives
+*.zip
+*.tar.gz
+*.tar
+*.tgz
+*.pack

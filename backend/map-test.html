@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Camera Follow Test</title>
+  <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+  <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: monospace; background: #0f172a; color: #e2e8f0; }
+    #map { width: 100%; height: 70vh; }
+    #debug { padding: 12px; font-size: 13px; line-height: 1.6; }
+    #debug .label { color: #94a3b8; }
+    #debug .value { color: #38bdf8; font-weight: bold; }
+    #debug .ok { color: #10b981; }
+    #debug .fail { color: #ef4444; }
+    #controls { padding: 8px 12px; display: flex; gap: 8px; }
+    button { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 13px; }
+    .btn-start { background: #10b981; color: white; }
+    .btn-stop { background: #ef4444; color: white; }
+    .btn-test { background: #3b82f6; color: white; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div id="controls">
+    <button class="btn-start" onclick="startSim()">Start GPS Simulation</button>
+    <button class="btn-stop" onclick="stopSim()">Stop</button>
+    <button class="btn-test" onclick="testJumpTo()">Test map.jumpTo()</button>
+    <button class="btn-test" onclick="testEaseTo()">Test map.easeTo()</button>
+    <button class="btn-test" onclick="testSetCenter()">Test setCenter()</button>
+  </div>
+  <div id="debug"></div>
+
+  <script>
+    // Simulated route through Caloundra area
+    var routePoints = [
+      { lat: -26.7240, lng: 153.1325, heading: 180 },
+      { lat: -26.7245, lng: 153.1323, heading: 195 },
+      { lat: -26.7250, lng: 153.1320, heading: 200 },
+      { lat: -26.7256, lng: 153.1318, heading: 210 },
+      { lat: -26.7262, lng: 153.1315, heading: 215 },
+      { lat: -26.7268, lng: 153.1312, heading: 220 },
+      { lat: -26.7275, lng: 153.1308, heading: 225 },
+      { lat: -26.7282, lng: 153.1305, heading: 230 },
+      { lat: -26.7288, lng: 153.1302, heading: 235 },
+      { lat: -26.7295, lng: 153.1298, heading: 240 },
+      { lat: -26.7302, lng: 153.1295, heading: 245 },
+      { lat: -26.7310, lng: 153.1292, heading: 250 },
+      { lat: -26.7318, lng: 153.1290, heading: 255 },
+      { lat: -26.7325, lng: 153.1288, heading: 260 },
+      { lat: -26.7332, lng: 153.1286, heading: 265 },
+      { lat: -26.7340, lng: 153.1285, heading: 270 },
+      { lat: -26.7348, lng: 153.1287, heading: 280 },
+      { lat: -26.7355, lng: 153.1290, heading: 290 },
+      { lat: -26.7362, lng: 153.1295, heading: 300 },
+      { lat: -26.7370, lng: 153.1300, heading: 310 },
+    ];
+
+    var LOOK_AHEAD = 0.001;
+    var simInterval = null;
+    var simIndex = 0;
+    var jumpCount = 0;
+    var lastCenter = null;
+    var debugEl = document.getElementById('debug');
+
+    // Create map
+    var map = new maplibregl.Map({
+      container: 'map',
+      style: 'https://tiles.openfreemap.org/styles/liberty',
+      center: [routePoints[0].lng, routePoints[0].lat],
+      zoom: 16,
+      pitch: 65,
+      bearing: routePoints[0].heading,
+      attributionControl: false,
+    });
+
+    // Driver arrow icon
+    var arrowCanvas = document.createElement('canvas');
+    arrowCanvas.width = 64; arrowCanvas.height = 64;
+    var actx = arrowCanvas.getContext('2d');
+    actx.fillStyle = '#2563eb';
+    actx.beginPath();
+    actx.moveTo(32, 4); actx.lineTo(52, 56); actx.lineTo(32, 44); actx.lineTo(12, 56);
+    actx.closePath(); actx.fill();
+    actx.strokeStyle = '#fff'; actx.lineWidth = 2; actx.stroke();
+
+    map.on('load', function() {
+      map.addImage('driver-arrow', arrowCanvas);
+
+      map.addSource('driver', {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [routePoints[0].lng, routePoints[0].lat] },
+          properties: { bearing: routePoints[0].heading }
+        }
+      });
+
+      map.addLayer({
+        id: 'driver-symbol',
+        type: 'symbol',
+        source: 'driver',
+        layout: {
+          'icon-image': 'driver-arrow',
+          'icon-size': 0.75,
+          'icon-rotate': ['get', 'bearing'],
+          'icon-rotation-alignment': 'map',
+          'icon-pitch-alignment': 'map',
+          'icon-allow-overlap': true,
+        }
+      });
+
+      // Pulsing ring
+      map.addSource('driver-ring', {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [routePoints[0].lng, routePoints[0].lat] },
+          properties: {}
+        }
+      });
+      map.addLayer({
+        id: 'driver-ring-outer',
+        type: 'circle',
+        source: 'driver-ring',
+        paint: {
+          'circle-radius': 28,
+          'circle-color': 'rgba(37, 99, 235, 0.08)',
+          'circle-stroke-width': 1.5,
+          'circle-stroke-color': 'rgba(37, 99, 235, 0.25)',
+        }
+      }, 'driver-symbol');
+
+      log('Map loaded. Click "Start GPS Simulation" or test individual methods.');
+    });
+
+    function log(msg) {
+      debugEl.innerHTML = msg;
+    }
+
+    function updateDebug(method, pt) {
+      var center = map.getCenter();
+      var moved = lastCenter ? (
+        Math.abs(center.lng - lastCenter.lng) > 0.00001 || 
+        Math.abs(center.lat - lastCenter.lat) > 0.00001
+      ) : true;
+      lastCenter = center;
+      jumpCount++;
+
+      debugEl.innerHTML = 
+        '<span class="label">Method:</span> <span class="value">' + method + '</span><br>' +
+        '<span class="label">GPS Point:</span> <span class="value">[' + pt.lat.toFixed(6) + ', ' + pt.lng.toFixed(6) + ']</span><br>' +
+        '<span class="label">Map Center:</span> <span class="value">[' + center.lat.toFixed(6) + ', ' + center.lng.toFixed(6) + ']</span><br>' +
+        '<span class="label">Bearing:</span> <span class="value">' + map.getBearing().toFixed(1) + '</span><br>' +
+        '<span class="label">Camera Moved:</span> <span class="' + (moved ? 'ok' : 'fail') + '">' + (moved ? 'YES' : 'NO') + '</span><br>' +
+        '<span class="label">Update #:</span> <span class="value">' + jumpCount + '</span><br>' +
+        '<span class="label">Sim Index:</span> <span class="value">' + simIndex + '/' + routePoints.length + '</span>';
+    }
+
+    function updateDriverMarker(pt) {
+      var src = map.getSource('driver');
+      if (src) {
+        src.setData({
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [pt.lng, pt.lat] },
+          properties: { bearing: pt.heading }
+        });
+      }
+      var ring = map.getSource('driver-ring');
+      if (ring) {
+        ring.setData({
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [pt.lng, pt.lat] },
+          properties: {}
+        });
+      }
+    }
+
+    // === Test Methods ===
+    function testJumpTo() {
+      simIndex = (simIndex + 1) % routePoints.length;
+      var pt = routePoints[simIndex];
+      var cLng = pt.lng + Math.sin(pt.heading * Math.PI / 180) * LOOK_AHEAD;
+      var cLat = pt.lat + Math.cos(pt.heading * Math.PI / 180) * LOOK_AHEAD;
+      
+      updateDriverMarker(pt);
+      map.jumpTo({ center: [cLng, cLat], bearing: pt.heading, pitch: 65 });
+      updateDebug('map.jumpTo()', pt);
+    }
+
+    function testEaseTo() {
+      simIndex = (simIndex + 1) % routePoints.length;
+      var pt = routePoints[simIndex];
+      var cLng = pt.lng + Math.sin(pt.heading * Math.PI / 180) * LOOK_AHEAD;
+      var cLat = pt.lat + Math.cos(pt.heading * Math.PI / 180) * LOOK_AHEAD;
+      
+      updateDriverMarker(pt);
+      map.easeTo({ center: [cLng, cLat], bearing: pt.heading, pitch: 65, duration: 800 });
+      updateDebug('map.easeTo()', pt);
+    }
+
+    function testSetCenter() {
+      simIndex = (simIndex + 1) % routePoints.length;
+      var pt = routePoints[simIndex];
+      
+      updateDriverMarker(pt);
+      map.setCenter([pt.lng, pt.lat]);
+      map.setBearing(pt.heading);
+      updateDebug('map.setCenter()', pt);
+    }
+
+    // === Simulation ===
+    function startSim() {
+      if (simInterval) clearInterval(simInterval);
+      simIndex = 0;
+      jumpCount = 0;
+
+      simInterval = setInterval(function() {
+        if (simIndex >= routePoints.length) {
+          simIndex = 0; // loop
+        }
+        var pt = routePoints[simIndex];
+        var cLng = pt.lng + Math.sin(pt.heading * Math.PI / 180) * LOOK_AHEAD;
+        var cLat = pt.lat + Math.cos(pt.heading * Math.PI / 180) * LOOK_AHEAD;
+
+        // Update driver marker
+        updateDriverMarker(pt);
+
+        // Move camera (same as what we inject from React Native)
+        map.jumpTo({ center: [cLng, cLat], bearing: pt.heading, pitch: 65 });
+
+        updateDebug('Simulation (jumpTo)', pt);
+        simIndex++;
+      }, 1000); // 1 GPS tick per second
+    }
+
+    function stopSim() {
+      if (simInterval) { clearInterval(simInterval); simInterval = null; }
+      log('Simulation stopped at index ' + simIndex);
+    }
+
+    // Also expose for injectJavaScript testing
+    window.updateDriverLocation = function(lat, lng, heading) {
+      var pt = { lat: lat, lng: lng, heading: heading };
+      updateDriverMarker(pt);
+      var cLng = lng + Math.sin(heading * Math.PI / 180) * LOOK_AHEAD;
+      var cLat = lat + Math.cos(heading * Math.PI / 180) * LOOK_AHEAD;
+      map.jumpTo({ center: [cLng, cLat], bearing: heading, pitch: 65 });
+      updateDebug('updateDriverLocation()', pt);
+    };
+  </script>
+</body>
+</html>

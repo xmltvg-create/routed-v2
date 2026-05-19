@@ -1,0 +1,102 @@
+name: latency-probe
+
+# Independent cold-start observability probe.
+#
+# Unlike `keepalive.yml` (which *prevents* sleep), this workflow *measures*
+# whether sleep is happening. It intentionally runs on a LONGER cadence so
+# the container has time to idle between probes — that's how you catch a
+# cold start in the wild.
+#
+# Output lands in GitHub's per-run Step Summary (the markdown panel at the
+# top of every Actions run), so you can scroll through the Actions tab and
+# see a clean history of TTFB / total-time / HTTP code with timestamps.
+#
+# A run is flagged FAIL if:
+#   • HTTP status isn't 200, OR
+#   • total-time exceeds COLD_START_THRESHOLD_SECONDS (default: 5s)
+# — which makes GitHub email you only when something is genuinely wrong.
+#
+# Setup: reuses the same `PROD_BACKEND_URL` secret you created for the
+# keepalive workflow. No extra configuration needed.
+
+on:
+  schedule:
+    # Every 15 minutes. Long enough to let scale-to-zero fire if it's going
+    # to, short enough to capture trends across a business day.
+    - cron: '*/15 * * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: latency-probe
+  cancel-in-progress: false
+
+env:
+  COLD_START_THRESHOLD_SECONDS: '5'
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Probe /api/health and record timings
+        env:
+          URL: ${{ secrets.PROD_BACKEND_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${URL:-}" ]; then
+            echo "::error::PROD_BACKEND_URL secret is not set."
+            exit 1
+          fi
+
+          # curl's -w gives us every stage of the request separately, which
+          # is the cheapest way to tell a slow DNS lookup apart from a real
+          # cold-start (which shows up as a large time_starttransfer).
+          read -r http_code dns_s connect_s tls_s ttfb_s total_s size_bytes <<EOF
+          $(curl -sS -o /tmp/body -w '%{http_code} %{time_namelookup} %{time_connect} %{time_appconnect} %{time_starttransfer} %{time_total} %{size_download}' --max-time 60 "$URL/api/health" || echo "000 0 0 0 0 60 0")
+          EOF
+
+          ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          threshold="${COLD_START_THRESHOLD_SECONDS}"
+
+          # Flag verdict (awk for portable float compare — bash can't).
+          verdict="OK"
+          cold="no"
+          if [ "$http_code" != "200" ]; then
+            verdict="FAIL (status=$http_code)"
+          elif awk "BEGIN{exit !($total_s > $threshold)}"; then
+            verdict="SLOW"
+            cold="likely"
+          fi
+
+          {
+            echo "# Latency probe — $ts UTC"
+            echo ""
+            echo "| Metric | Value |"
+            echo "| --- | --- |"
+            echo "| HTTP status | \`$http_code\` |"
+            echo "| DNS lookup | ${dns_s}s |"
+            echo "| TCP connect | ${connect_s}s |"
+            echo "| TLS handshake | ${tls_s}s |"
+            echo "| TTFB (server processing) | **${ttfb_s}s** |"
+            echo "| Total time | **${total_s}s** |"
+            echo "| Body size | ${size_bytes} bytes |"
+            echo "| Cold-start threshold | ${threshold}s |"
+            echo "| Verdict | **$verdict** (cold=$cold) |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # Console echo so you can also grep raw logs.
+          echo "$ts code=$http_code ttfb=${ttfb_s}s total=${total_s}s verdict=$verdict"
+
+          # Fail the run only on real problems. SLOW is a soft signal — we
+          # still want the probe job itself to succeed so the cron keeps
+          # running and the Step Summary history stays complete. Email is
+          # sent by GitHub only when the run fails, so this gives you
+          # email-on-outage without spam-on-latency.
+          if [ "$http_code" != "200" ]; then
+            echo "::error::Health check returned HTTP $http_code"
+            exit 1
+          fi
+
+          if [ "$cold" = "likely" ]; then
+            echo "::warning::Possible cold start — total ${total_s}s exceeds ${threshold}s threshold"
+          fi

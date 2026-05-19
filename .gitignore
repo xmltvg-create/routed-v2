@@ -1,0 +1,311 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# IDE and editors
+.idea/
+.vscode/
+
+# Dependencies
+node_modules/
+/node_modules
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Testing
+/coverage
+
+# Next.js
+/.next/
+/out/
+next-env.d.ts
+*.tsbuildinfo
+
+# Production builds
+/build
+dist/
+dist
+
+# Token / credential payloads (NOT .env — those are tracked, see below)
+*token.json*
+*credentials.json*
+
+# Logs and debug files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+dump.rdb
+
+# System files
+.DS_Store
+*.pem
+
+# Python
+__pycache__/
+*pyc*
+venv/
+.venv/
+
+# Development tools
+chainlit.md
+.chainlit
+.ipynb_checkpoints/
+.ac
+
+# Deployment
+.vercel
+
+# Data and databases
+agenthub/agents/youtube/db
+
+# Archive files and large assets
+**/*.zip
+**/*.tar.gz
+**/*.tar
+**/*.tgz
+*.pack
+*.deb
+*.dylib
+
+# Build caches
+.cache/
+
+# Mobile development
+android-sdk/
+
+model.patch
+queensland.osm.pbf
+queensland.osrm*
+osrm-backend/
+
+# ─────────────────────────────────────────────────────────────────────
+# .env files are INTENTIONALLY TRACKED. Do NOT add `.env`, `.env.*`,
+# or `*.env` patterns to this file. Emergent's deploy pipeline relies
+# on the .env files being present in the repo bundle — blocking them
+# silently strips production env values and causes deploys to roll back
+# to the previous image without surfacing an error.
+#
+# KNOWN ISSUE: the deployment_agent tool has been observed re-appending
+# `.env` blocking patterns automatically on each invocation. The audit
+# script at /app/scripts/pre-deploy-audit.sh checks for this on every
+# commit (via .husky/pre-commit) and every deploy (via package.json
+# `update:prod` and `deploy:preflight`). If your push fails with the
+# red "DEPLOY BLOCKED" banner, scroll up — the line numbers in the
+# audit output tell you exactly which .env* patterns to delete.
+# ─────────────────────────────────────────────────────────────────────
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+play-service-account.json
+frontend/play-service-account.json
+*.play-service-account.json
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials

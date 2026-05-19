@@ -1,0 +1,122 @@
+{
+  "summary": "Backend regression validation completed successfully. All 45 tests pass across 5 test files: test_auto_tighten_during_optimize.py (9 tests), test_van_layout_endpoints.py (4 tests), test_open_path_tsp.py (12 tests), test_pyvrp_duplicate_coords.py (12 tests), and test_optimize_and_van_layout_http.py (8 HTTP tests). The slack_seconds/slack_ratio tolerance parameters in _osrm_verify_relocation are working correctly, and the auto-tighten pass during /api/optimize is functioning as expected.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_auto_tighten_during_optimize.py",
+    "/app/backend/tests/test_van_layout_endpoints.py",
+    "/app/backend/tests/test_open_path_tsp.py",
+    "/app/backend/tests/test_pyvrp_duplicate_coords.py",
+    "/app/backend/tests/test_optimize_and_van_layout_http.py",
+    "/app/test_reports/pytest/pytest_results_iter24.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py uses deprecated @app.on_event decorators - consider migrating to lifespan event handlers",
+    "Segfaults on pytest exit (exit code 139) are post-test cleanup issues with JPype/Timefold JVM teardown - not affecting test results"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_optimize_and_van_layout_http.py"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "N/A (backend only testing)"
+  },
+  "test_credentials": "Created test session for xmltvg@gmail.com (user_2a7d88cbb419) with token 59c60389-8953-4a7b-9088-d6175aa30243 expiring 2026-05-02",
+  "seed_data_creation": "None - used existing user data",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All specified test files pass individually. The HTTP tests for /api/optimize and /api/van-layout require authentication - use the session token 59c60389-8953-4a7b-9088-d6175aa30243 for user xmltvg@gmail.com. Auto-tighten is working: logs show 'Auto-tightened 10 spike(s) during /api/optimize'. Van layout validation correctly rejects invalid shapes (4x4, 5x5) with 400 status.",
+  "tests_executed": {
+    "test_auto_tighten_during_optimize.py": {
+      "total": 9,
+      "passed": 9,
+      "tests": [
+        "test_screenshot_zigzag_is_resolved_by_iterative_tighten",
+        "test_already_clean_route_is_a_no_op",
+        "test_tighten_terminates_under_max_passes",
+        "test_tighten_returns_same_stops_no_loss",
+        "test_verify_keeps_proposed_when_strictly_faster",
+        "test_verify_rolls_back_when_slower_with_no_slack",
+        "test_verify_accepts_slower_route_within_slack_seconds",
+        "test_verify_accepts_slower_route_within_slack_ratio",
+        "test_verify_rolls_back_beyond_slack_threshold"
+      ]
+    },
+    "test_van_layout_endpoints.py": {
+      "total": 4,
+      "passed": 4,
+      "tests": [
+        "test_allowed_shapes_documents_supported_grids",
+        "test_van_layout_accepts_supported_shapes",
+        "test_van_layout_pydantic_rejects_non_int_inputs",
+        "test_allowed_shapes_lookup_works_for_validation"
+      ]
+    },
+    "test_open_path_tsp.py": {
+      "total": 12,
+      "passed": 12,
+      "tests": [
+        "TestOpenPathMatrix::test_empty",
+        "TestOpenPathMatrix::test_single_node",
+        "TestOpenPathMatrix::test_zeros_return_column_only",
+        "TestOpenPathMatrix::test_does_not_mutate_input",
+        "TestOpenPathMatrix::test_non_zero_depot",
+        "TestOpenPathMatrix::test_out_of_range_depot_is_noop",
+        "TestPyVRPOpenPath::test_river_crossing_uses_bridge_only_once",
+        "TestPyVRPOpenPath::test_returns_all_stops_uniquely",
+        "TestPyVRPOpenPath::test_starts_at_depot",
+        "TestLKHOpenPath::test_river_crossing_uses_bridge_only_once",
+        "TestLKHOpenPath::test_returns_all_stops_uniquely",
+        "test_pyvrp_and_lkh_agree_on_open_path"
+      ]
+    },
+    "test_pyvrp_duplicate_coords.py": {
+      "total": 12,
+      "passed": 12,
+      "tests": [
+        "TestSanitizeOSRMMatrix::test_diagonal_forced_to_zero",
+        "TestSanitizeOSRMMatrix::test_none_replaced_with_penalty",
+        "TestSanitizeOSRMMatrix::test_negatives_replaced_with_penalty",
+        "TestSanitizeOSRMMatrix::test_nan_replaced_with_penalty",
+        "TestSanitizeOSRMMatrix::test_input_not_mutated",
+        "TestPyVRPDuplicateCoordinates::test_all_stop_ids_appear_exactly_once",
+        "TestPyVRPDuplicateCoordinates::test_duplicate_cluster_stays_contiguous",
+        "TestPyVRPDuplicateCoordinates::test_open_path_optimum_with_duplicates",
+        "TestPyVRPSolverGrouping::test_solver_groups_by_coord_when_provided",
+        "TestPyVRPSolverGrouping::test_solver_does_not_group_when_coords_omitted",
+        "TestPyVRPSolverGrouping::test_service_duration_summed_within_group",
+        "TestPyVRPNoDuplicateRegression::test_river_crossing_unaffected_by_grouping"
+      ]
+    },
+    "test_optimize_and_van_layout_http.py": {
+      "total": 8,
+      "passed": 8,
+      "tests": [
+        "TestOptimizeEndpoint::test_optimize_returns_200_with_required_fields",
+        "TestOptimizeEndpoint::test_optimize_no_hamiltonian_violations",
+        "TestOptimizeEndpoint::test_optimize_spike_detection_fixture",
+        "TestVanLayoutEndpoint::test_van_layout_get_default_for_fresh_user",
+        "TestVanLayoutEndpoint::test_van_layout_put_valid_shape_persists",
+        "TestVanLayoutEndpoint::test_van_layout_put_invalid_shape_returns_400",
+        "TestVanLayoutEndpoint::test_van_layout_put_another_invalid_shape",
+        "TestOptimizeEndpointNoAuth::test_optimize_with_different_solvers"
+      ]
+    }
+  },
+  "verified_features": {
+    "slack_seconds_slack_ratio_tolerance": "Working - tests verify that _osrm_verify_relocation accepts visually cleaner routes within tolerance (max(90s, before_s * 0.03))",
+    "auto_tighten_during_optimize": "Working - logs show 'Auto-tightened 10 spike(s) during /api/optimize'",
+    "van_layout_get": "Working - returns 200 with rows, cols, is_default",
+    "van_layout_put_valid": "Working - {rows:3, cols:4} persists, is_default becomes false",
+    "van_layout_put_invalid": "Working - 4x4 and 5x5 return 400 Bad Request",
+    "hamiltonian_integrity": "Working - no dropped/duplicated stop IDs in optimized_sequence"
+  }
+}

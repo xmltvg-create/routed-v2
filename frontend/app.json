@@ -1,0 +1,108 @@
+{
+  "expo": {
+    "name": "RouTeD",
+    "slug": "routed",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "routed",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Navigate to delivery stops efficiently",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Track your route in real-time",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "bundleIdentifier": "com.routedopt.app",
+      "runtimeVersion": "1.0.0"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#000000"
+      },
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
+      ],
+      "package": "com.routedopt.app",
+      "versionCode": 78,
+      "runtimeVersion": "1.0.0"
+    },
+    "androidStatusBar": {
+      "backgroundColor": "#000000"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-dev-client",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "minSdkVersion": 24,
+            "buildToolsVersion": "35.0.0"
+          }
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-image.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#000"
+        }
+      ],
+      "expo-font",
+      "./plugins/withHardwareAcceleration.js",
+      "./plugins/withAdiRegistration.js",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "RouTeD needs camera access to scan parcel barcodes when loading the van."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "isAndroidForegroundServiceEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "locationAlwaysAndWhenInUsePermission": "RouTeD tracks your location during active delivery shifts to optimize routes, calculate accurate ETAs, and record delivery completion points for the ML learning system."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "updates": {
+      "enabled": true,
+      "fallbackToCacheTimeout": 0,
+      "checkAutomatically": "ON_LOAD",
+      "requestHeaders": {
+        "expo-channel-name": "production"
+      },
+      "url": "https://u.expo.dev/9e2548a1-6e51-4ae4-b8da-33eb0616460e"
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "9e2548a1-6e51-4ae4-b8da-33eb0616460e"
+      }
+    },
+    "owner": "xxmltvguides-organization",
+    "runtimeVersion": "1.0.0"
+  }
+}

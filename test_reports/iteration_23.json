@@ -1,0 +1,63 @@
+{
+  "summary": "Backend regression testing for PathPilot /api/optimize endpoint. All 51 tests passed (1 skipped for Timefold). Verified: (1) lkh_tsp_solve sanitizes OSRM matrix before open-path zero-out, (2) three_opt_improve uses non-reversing A+C+B+D swap on asymmetric matrices, (3) auto algorithm resolves to vroom_lkh_3opt for >=11 stops, (4) PyVRP groups identical-coord stops as super-nodes. All algorithms (vroom, lkh, pyvrp, ortools, vroom_lkh_3opt) return Hamiltonian paths.",
+  "timestamp": "2026-04-25T11:02:00Z",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_open_path_tsp.py",
+    "/app/backend/tests/test_pyvrp_duplicate_coords.py",
+    "/app/backend/tests/test_solver_hamiltonicity.py",
+    "/app/backend/tests/test_optimize_api.py",
+    "/app/test_reports/pytest/pytest_results_iter23.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "sanitize_osrm_matrix correctly handles None/negative/NaN values with PENALTY_SECONDS (999999)",
+    "three_opt_improve uses non-reversing A+C+B+D swap - safe for asymmetric OSRM matrices",
+    "Auto algorithm selection: >=11 stops -> vroom_lkh_3opt, <11 stops -> vroom/ortools",
+    "PyVRP duplicate-coord grouping preserves input order within super-nodes",
+    "All solvers return Hamiltonian paths (no dropped/duplicate stops)"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_optimize_api.py"
+  ],
+  "success_rate": {
+    "backend": "100% (51/51 passed, 1 skipped)",
+    "frontend": "N/A (skipped per request)"
+  },
+  "test_credentials": "DEV_MODE=true for testing, restored to DEV_MODE=false after tests",
+  "seed_data_creation": "12-stop and 30-stop SE Queensland test datasets seeded via /api/stops, cleaned up after tests",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All /api/optimize algorithms verified working. Test file test_optimize_api.py created for regression testing. OSRM service running on localhost:5000. DEV_MODE=false restored. No production user data was modified.",
+  "test_results": {
+    "pytest_unit_tests": {
+      "test_open_path_tsp.py": "12 passed - river-crossing matrix, open-path fix verified",
+      "test_pyvrp_duplicate_coords.py": "12 passed - duplicate-coord grouping, matrix sanitization",
+      "test_solver_hamiltonicity.py": "13 passed (1 skipped) - all solvers preserve Hamiltonian path"
+    },
+    "api_integration_tests": {
+      "test_optimize_api.py": "14 passed - algorithms endpoint, auto selection, individual algorithms, response structure, edge cases"
+    }
+  },
+  "algorithms_verified": {
+    "auto": "Resolves to vroom_lkh_3opt for >=11 stops, vroom/ortools for <11 stops",
+    "vroom": "Returns Hamiltonian path",
+    "lkh": "Returns Hamiltonian path",
+    "pyvrp": "Returns Hamiltonian path with duplicate-coord grouping",
+    "ortools": "Returns Hamiltonian path",
+    "vroom_lkh_3opt": "Returns Hamiltonian path with time_savings field",
+    "three_opt": "Does not crash on asymmetric OSRM matrix"
+  },
+  "mocked_api": {
+    "has_mocked_apis": false,
+    "mocked_apis_list": []
+  }
+}

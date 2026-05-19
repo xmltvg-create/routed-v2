@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RouTeD — Privacy Policy</title>
+  <meta name="robots" content="index,follow" />
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 32px 20px 64px;
+      line-height: 1.6;
+      color: #0f172a;
+      background: #fff;
+    }
+    @media (prefers-color-scheme: dark) {
+      body { background: #0b1220; color: #e2e8f0; }
+      h1, h2 { color: #fff; }
+      code { background: #1e293b; color: #fef3c7; }
+      a { color: #93c5fd; }
+    }
+    h1 { font-size: 28px; margin-bottom: 4px; }
+    h2 { font-size: 19px; margin-top: 32px; }
+    h3 { font-size: 16px; margin-top: 20px; }
+    .meta { color: #64748b; font-size: 13px; }
+    code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+    ul li { margin-bottom: 6px; }
+    .callout {
+      background: #f1f5f9;
+      border-left: 4px solid #0ea5e9;
+      padding: 12px 16px;
+      margin: 16px 0;
+      border-radius: 4px;
+    }
+    @media (prefers-color-scheme: dark) {
+      .callout { background: #1e293b; border-left-color: #38bdf8; }
+    }
+  </style>
+</head>
+<body>
+
+<h1>RouTeD — Privacy Policy</h1>
+<p class="meta"><strong>Effective date:</strong> 13 May 2026 · <strong>Last updated:</strong> 13 May 2026</p>
+
+<p>RouTeD ("the app", "we", "us") is a route-optimization tool for delivery drivers. This policy explains what data we collect, how it's used, and the controls you have over it.</p>
+
+<div class="callout">
+  <strong>The short version:</strong> we collect the minimum data needed to optimize your delivery routes and learn from your driving patterns. We don't sell your data. We don't show ads. We don't track you across other apps or websites.
+</div>
+
+<h2>1. Who controls your data</h2>
+<p>The data controller is the operator of the RouTeD service. For privacy questions or data-access requests, contact <strong>xmltvg@gmail.com</strong>.</p>
+
+<h2>2. Information we collect</h2>
+
+<h3>2.1 Account information</h3>
+<ul>
+  <li><strong>Google Sign-In:</strong> name, email, profile picture, and Google user ID — used to authenticate you and link your stops to your account. We use Emergent-managed Google OAuth; we never see your Google password.</li>
+</ul>
+
+<h3>2.2 Stop &amp; route data (you create)</h3>
+<ul>
+  <li>Delivery addresses, names, phone numbers, weights, quantities, tracking numbers, notes, time windows, and priority — imported from XLS/CSV or entered manually.</li>
+  <li>Geocoded latitude/longitude for each stop (resolved via Mapbox).</li>
+  <li>Optimized route sequence and confirmed driving order.</li>
+  <li>Archived route history (after you tap "Save Route to History").</li>
+</ul>
+
+<h3>2.3 Telemetry collected at delivery time</h3>
+<ul>
+  <li><strong>Location while the app is open and actively delivering:</strong> GPS coordinates are used for navigation, geofence-based arrival detection, and to learn the actual kerb-side delivery point for each address.</li>
+  <li><strong>Arrival timestamp</strong> (when you cross the 100m geofence) and <strong>completion timestamp</strong> (when you tap Delivered).</li>
+  <li><strong>Service duration</strong> = completion − arrival.</li>
+  <li><strong>Completion GPS</strong> at the moment you tap Delivered — used by the Building-Side Corrector ML model to learn how far the rooftop centroid is from the actual delivery point.</li>
+  <li><strong>View mode at completion</strong> (planning vs navigating) — a diagnostic flag, never used for marketing.</li>
+</ul>
+
+<h3>2.4 Camera (Photo Proof of Delivery)</h3>
+<ul>
+  <li>If you enable Proof of Delivery, photos you take are stored against the corresponding stop, stamped with GPS and timestamp. Photos are visible only to you and are deleted when you delete the stop or archive the route.</li>
+</ul>
+
+<h3>2.5 Payment data</h3>
+<ul>
+  <li>RouTeD Pro subscriptions are handled by Stripe. We never see or store your card number — Stripe handles that under their own <a href="https://stripe.com/privacy">privacy policy</a>. We retain only the Stripe customer ID, subscription status, and renewal date.</li>
+</ul>
+
+<h3>2.6 Diagnostic logs</h3>
+<ul>
+  <li>Backend request logs (timestamps, request paths, response codes, user ID) — retained for 30 days for debugging and abuse prevention.</li>
+</ul>
+
+<h2>3. How we use your information</h2>
+<ul>
+  <li><strong>To run the service:</strong> sign you in, store your stops, optimize routes, render the map, calculate ETAs.</li>
+  <li><strong>To improve your routes:</strong> the ML service-time learner and building-side corrector are trained <em>per user</em> on your own archived data — your patterns never train another driver's model.</li>
+  <li><strong>To process payments:</strong> via Stripe, for RouTeD Pro subscriptions.</li>
+  <li><strong>To fix bugs and prevent abuse:</strong> via the diagnostic logs above.</li>
+</ul>
+
+<p>We do <strong>not</strong> use your data for advertising, behavioral profiling, or share it with data brokers.</p>
+
+<h2>4. Data sharing</h2>
+<ul>
+  <li><strong>Mapbox:</strong> we send delivery addresses to Mapbox for geocoding and to the routing engine (OSRM / VROOM) for drive-time matrices. Mapbox sees the addresses but not your account identity.</li>
+  <li><strong>Stripe:</strong> for payment processing (RouTeD Pro only).</li>
+  <li><strong>Google:</strong> for Sign-In authentication only.</li>
+  <li><strong>Emergent (our hosting provider):</strong> stores your data in MongoDB Atlas on our behalf. Emergent is bound by a Data Processing Agreement.</li>
+  <li><strong>Law enforcement:</strong> only when compelled by a valid legal request from a competent authority in our jurisdiction.</li>
+</ul>
+
+<h2>5. Where your data is stored</h2>
+<p>Data is stored in MongoDB Atlas (region selected by the hosting provider). Backend services run in containerized environments managed by Emergent. We use TLS in transit and at-rest encryption provided by Atlas.</p>
+
+<h2>6. How long we keep it</h2>
+<ul>
+  <li><strong>Active stops &amp; routes:</strong> until you delete them or close your account.</li>
+  <li><strong>Archived route history:</strong> retained indefinitely so the ML models keep improving; you can delete any archived route from the Profile tab.</li>
+  <li><strong>Diagnostic logs:</strong> 30 days.</li>
+  <li><strong>Account-deletion requests:</strong> all stops, routes, ML models, and account records are wiped within 30 days of a confirmed request.</li>
+</ul>
+
+<h2>7. Your rights</h2>
+<p>You may at any time:</p>
+<ul>
+  <li><strong>Access</strong> a copy of your data — email <strong>xmltvg@gmail.com</strong> and we will export your records within 30 days.</li>
+  <li><strong>Correct</strong> any inaccurate information via the in-app editor or by email.</li>
+  <li><strong>Delete</strong> your account — email us with the subject "Delete my account" and we will purge all your data within 30 days.</li>
+  <li><strong>Object</strong> to processing or <strong>withdraw consent</strong> for optional features (e.g. Photo Proof of Delivery, ML training) without losing access to core route optimization.</li>
+  <li><strong>Lodge a complaint</strong> with your local data-protection authority if you believe we've mishandled your data.</li>
+</ul>
+
+<h2>8. Permissions we request on your device</h2>
+<ul>
+  <li><strong>Location (Foreground &amp; Background):</strong> required for live navigation, geofence arrival detection, and route progress tracking. You can revoke at any time in Android Settings → Apps → RouTeD → Permissions.</li>
+  <li><strong>Camera:</strong> only used when you tap "Take Photo" on a stop for Proof of Delivery.</li>
+  <li><strong>Storage:</strong> for caching map tiles and your imported XLS/CSV files.</li>
+  <li><strong>Notifications:</strong> optional — for arrival alerts and route-completion summaries.</li>
+</ul>
+
+<h2>9. Children</h2>
+<p>RouTeD is a B2B delivery tool. It is not directed at children under 16, and we do not knowingly collect data from them. If you believe a minor has used RouTeD, contact us and we will delete the account.</p>
+
+<h2>10. Security</h2>
+<p>We use TLS 1.2+ in transit, Atlas-managed encryption at rest, JWT-based session tokens, and per-user data scoping at the database query level. No system is perfect — if we discover a breach affecting your data we will notify you within 72 hours.</p>
+
+<h2>11. Changes to this policy</h2>
+<p>If we materially change how we use your data, we will notify you in-app and via the email on file before the change takes effect. The latest version of this policy will always be available at this URL.</p>
+
+<h2>12. Contact</h2>
+<p>Privacy questions, data requests, or to exercise any of the rights above: <strong>xmltvg@gmail.com</strong></p>
+
+<hr style="margin-top:48px;border:none;border-top:1px solid #cbd5e1;" />
+<p class="meta">RouTeD v1.0.0 · com.routedopt.app · Built with Expo</p>
+
+</body>
+</html>

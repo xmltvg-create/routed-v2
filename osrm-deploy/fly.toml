@@ -1,0 +1,63 @@
+# PathPilot OSRM service — Fly.io configuration.
+#
+# Tier choice:
+#   • Free tier (3 × 256 MB shared-cpu-1x) is too small for QLD OSRM —
+#     the map data spans most of north-eastern Australia and OSRM mmap's
+#     ~1.2 GB into RAM during routing. We default to a 1 GB Hobby VM
+#     ($1.94/mo for 1 vCPU + 1 GB) which holds QLD comfortably with
+#     ~200 MB headroom for table queries on 200-stop matrices.
+#   • If you want to stay on the free tier, build with a SMALLER OSM
+#     extract (e.g. just the `australia/queensland-southeast` bounding
+#     box). Geofabrik doesn't slice that finely, so use the BBBike or
+#     osmium tools workflow instead — see README.md.
+#
+# Region: `syd` is Sydney (au-syd1), the closest Fly region to your
+# Sunshine Coast users — keeps round-trip latency under 30 ms.
+
+app = "pathpilot-osrm"
+primary_region = "syd"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[[services]]
+  internal_port = 5000
+  protocol = "tcp"
+  # Auto-stop when idle saves money. The first request after sleep takes
+  # ~5-10 s to wake; subsequent calls are fast. PathPilot retries on
+  # OSRM timeout via the circuit breaker, so a cold start is invisible
+  # to the driver after the first hit.
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[services.ports]]
+    handlers = ["http"]
+    port = 80
+    force_https = true
+
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port = 443
+
+  # Health check hits the OSRM nearest endpoint with a known coord.
+  # Returns 200 + JSON when osrm-routed has finished mmap'ing the
+  # `.osrm.*` files (~3-5 s on cold start). Fly waits for the first
+  # successful check before routing traffic to the new machine.
+  [[services.tcp_checks]]
+    interval = "15s"
+    timeout = "2s"
+    grace_period = "30s"
+
+  [[services.http_checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "60s"
+    method = "get"
+    path = "/nearest/v1/driving/153.0758,-26.5345"
+    protocol = "http"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 1024

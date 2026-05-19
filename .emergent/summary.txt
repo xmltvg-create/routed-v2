@@ -1,0 +1,158 @@
+<analysis>**original_problem_statement:**
+The user is building a highly optimized route-planning application for delivery logistics using React Native and FastAPI. The app features 3D driving navigation, complex backend route optimization, and requires hitting 60fps on Android via a pure WebGL MapLibre implementation inside a WebView. Recent feature requests included: making the lasso outline sticky with multiple color-coded groups, fixing stale MapLibre map marker text so sequence numbers update instantly, adding QLD cadastral property boundaries and address numbers, integrating the Java-based  optimization engine, ensuring all 14+ solvers are available in the benchmark dropdown, and adding an XLS export feature for routes.
+PRODUCT REQUIREMENTS: High-performance map interactions, offline/custom 3D building tiles, imperative WebView communication bypassing React state latency, and robust route optimization.
+don't use fast mode to save on credits
+
+**User's preferred language**: English (INSTRUCT next agent to respond in English only)
+
+
+**what currently exists?** 
+A React Native app with an advanced  component that runs MapLibre GL JS inside an Android WebView. It supports multi-section lasso drawing, QLD property boundary vector tiles (proxied via FastAPI), and dynamic speed-based auto-zoom. The backend utilizes a massive suite of optimization solvers including VROOM, LKH-3, OR-Tools, ALNS, and the Java-based Timefold engine (via JPype). It allows exporting sorted routes to Excel. 
+
+**Last working item**: 
+    - Last item agent was working: Fixing an Expo/Ngrok bundle download issue for the user. The agent successfully fixed a bug where the refine lasso tool created duplicate groups, but the user's Expo Go app was blocked from downloading the bundle by an Ngrok free-tier interstitial page. The agent applied a custom header bypass to the tunnel.
+    - Status: USER VERIFICATION PENDING
+    - Agent Testing Done: Y (verified server/tunnel statuses)
+    - Which testing method agent to use? manual testing by curl / python -c / check local expo build commands
+    - User Testing Done: N
+
+**All Pending/In progress Issue list**: 
+  Issue 1: Production EAS Deployment Verification (P0)
+  
+  Issues Detail:
+  - Issue 1: 
+     - Attempted fixes: The agent previously removed incompatible  to fix the EAS build pipeline.
+     - Next debug checklist: Wait for the user to trigger the deployment from the dashboard and confirm if the EAS Android build succeeds.
+     - Why fix this issue and what will be achieved with the fix? It allows the user to distribute the heavily upgraded APK to real devices.
+     - Status: USER VERIFICATION PENDING
+     - Is recurring issue? Y (EAS build dependency strictness)
+     - Should Test frontend/backend/both after fix? NA
+     - Blocked on other issue: None
+
+**In progress Task List**: 
+None active.
+
+**Upcoming and Future Tasks**
+    Upcoming Tasks:
+    - Swipe-to-Deliver Gesture (P1) (Replace the Delivered button with a swipe-right gesture on the bottom panel).
+    - Photo Proof of Delivery (P1) (Add camera icon to capture and stamp photos with GPS/timestamp).
+    - Next 3 Stops Preview (P2) (Show a horizontal strip of upcoming stops when immersive mode is active).
+    - Customer Contact Bar (P2) (Auto-expand an amber bar with contact info when approaching a stop <200m).
+    - Speed Limit Warning (P2) (Flash speedometer red when exceeding Mapbox maxspeed).
+    
+    Future Tasks:
+    - Night mode / satellite map style toggle (P3)
+    - Night mode for 3D buildings (P3)
+    - Lane Guidance & Progress Ring (P3)
+    - Offline Mode (P3)
+    - Re-generate building tiles with  when the ARM64 bug is resolved.
+    - Refactor  and  (P2) (Massive files needing decomposition).
+
+**Completed work in this session**
+- Made Map lasso sticky and supported multiple colored sections on the map simultaneously (, ). (DONE)
+- Fixed stale MapLibre marker text (GeoJSON caching issue) by injecting a  to force instant marker sequence updates. (DONE)
+- Integrated QSpatial Cadastral property boundaries & street addresses via backend proxy endpoints (, ) and a frontend toggle. (DONE)
+- Changed MapLibre  to  to fix 404 font errors from OpenFreeMap. (DONE)
+- Implemented speed-based auto-zoom for the driving mode camera. (DONE)
+- Fixed Keyboard blocking the Stop Modal address input using  + . (DONE)
+- Installed and integrated the Java-based  optimization engine via  (). (DONE)
+- Added missing solvers (, , , ) to the UI dropdown and optimization routing logic. (DONE)
+- Fixed optimization algorithm fallback logic so large routes (>40 stops) correctly utilize advanced solvers instead of defaulting to nearest neighbor. (DONE)
+- Implemented Excel () Export feature () and added an export button to . (DONE)
+- Fixed a duplicate group bug in Refine Mode by adding a  guard against double touch events. (DONE)
+
+**Earlier issues found/mentioned but not fixed**
+None.
+
+**Known issue recurrence from previous fork**
+  - Issue recurrence in previous fork: Expo Metro Cache staleness & Ngrok tunnel timeouts.
+  - Recurrence count: Extremely High.
+  - Status: RESOLVED (Mitigated by manual workarounds).
+  Note: Any time you modify the inline HTML string inside , you MUST perform a hard Metro cache reset. Furthermore, Ngrok's free tier currently throws an interstitial browser warning that blocks Expo Go from downloading the JS bundle. You must run ngrok manually with the  flag to bypass this.
+
+**Code Architecture**
+
+
+**Key Technical Concepts**
+-  (MapLibre fork) with WebView Imperative Communication.
+- **GraalPy / JPype1**: Used to run the Java JVM inside the Python backend process for the  Vehicle Routing solver.
+- Proxying 3rd Party ArcGIS Vector Tile Servers (QSpatial QLD boundaries) directly through FastAPI for caching.
+
+**key DB schema**
+  - : {user_id, id, address, name, geocode_metadata, completed, order, notes}
+  - : {id, user_id, stops, geometry, stats, created_at, completed_at}
+  - : {user_id, lat, lng}
+
+**changes in tech stack**
+  - Added  (Backend) for generating  Excel files.
+  - Added  and  (Backend) for Java VRP constraint optimization.
+  - Added  (Frontend) to trigger native Android share-sheets for the exported routes.
+
+**All files of reference**
+  -  (Newly created file bridging Python and Java Timefold SDK)
+  -  (Heavily updated for sticky lassos, QSpatial parcels, font fixes, and speed-based zoom)
+  -  (Updated to handle multi-section drawing, keyboard-avoiding modals, and speed props)
+  -  (Added new tile proxies, benchmark/optimization adjustments, and Excel export)
+  -  (Added Export button)
+  -  (Updated)
+
+**Areas that need refactoring**:
+  -  (>6,600 lines) and  (>3,700 lines) are enormous and desperately need modularization.
+
+**key api endpoints**
+  - : Proxies QSpatial Cadastral parcels.
+  - : Proxies QSpatial address/street numbers.
+  - : Generates and downloads the current route as an Excel file.
+  -  & : Supports 14 different solver combinations including Timefold, LKH, VROOM, and OR-Tools.
+
+**Critical Info for New Agent**
+  - **LKH Binary**: The LKH-3 solver binary is located at . If the container is completely reset, the binary may be lost and will need to be recompiled from source before LKH optimization works again.
+  - **Java Dependency**:  relies on  which requires  to be explicitly set in the backend environment. This is currently set up, but keep it in mind if Timefold fails to boot.
+  - **Ngrok Interstitial Block**: Do not just run [16:19:20] Starting project at /app/frontend. The free Ngrok tunnel displays a browser warning page that prevents the Android phone from downloading the bundle. To test natively, run the Metro bundler locally on port 3000, and spin up Ngrok manually with header injections.
+  - **WebView Native First**: The user explicitly requested that  is treated as the main mapping edition going forward. All map changes MUST be accompanied by a hard Metro cache reset.
+
+**documents and test reports created in this job**
+  - /app/memory/PRD.md
+
+**Last 10 User Messages and any pending HUMAN messages**
+ 1. any recommendations on enhancements to the driving mode ui
+ 2. Speed-Based Auto-Zoom...
+ 3. when typing in the edit address section of stop cards it blocks out the typing area
+ 4. with the benchmark make sure all the optimation solvers are added
+ 5. make sure all optimisation solvers are in the drop down box
+ 6. what library are you currently using for the Java optimization engine
+ 7. yes any suggestions [for Java solvers]
+ 8. add a export xls
+ 9. Lkh error and timefold error
+ 10. the refine is making duplicates (Resolved)
+ 11. expo error / failed to download (Resolved by applying Ngrok bypass headers, verification pending).
+
+**Project Health Check:**
+Broken: No.
+Mocked: DEV_MODE logic bypasses auth for testing.
+
+**3rd Party Integrations**
+  - MapLibre GL () (Frontend)
+  - Google Auth (Emergent-managed)
+  - QSpatial ArcGIS MapServers (Property Boundaries/Addresses)
+  - Timefold (Java-based VRP Solver)
+  - OSRM, VROOM, LKH-3 (Backend Local Binaries)
+
+**Testing status**
+  - Testing agent used after significant changes: NO (Heavy reliance on manual logs and live user validation for complex native map behaviors).
+  - Troubleshoot agent used after agent stuck in loop: NO
+  - Test files created: None
+  - Known regressions: None
+
+**Credentials to test flow:**
+Refer to .
+
+**What agent forgot to execute**
+None.
+
+**Debugging checklist for current issue**
+    Issue: User needs to confirm that Expo Go successfully downloaded the bundle after the Ngrok bypass header was applied.
+    Frontend files to check: NA
+    Backend files to check: NA
+    Database to check: NA
+    Flag --request-header-add has been deprecated, use traffic policy instead</analysis>

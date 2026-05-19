@@ -1,0 +1,101 @@
+{
+  "summary": "OSRM Directions API and Route Caching - All 9 tests passed. Verified OSRM Route API integration, directions caching, cache stats endpoint, and optimization endpoint.",
+  "timestamp": "2026-04-09T09:15:00Z",
+  "total_tests": 9,
+  "passed": 9,
+  "failed": 0,
+  "tests": [
+    {
+      "name": "GET / health check",
+      "status": "PASS",
+      "detail": "Returns 200"
+    },
+    {
+      "name": "GET /api/directions returns source='osrm'",
+      "status": "PASS",
+      "detail": "Returns source='osrm', distance=2851.9m, duration=344.1s, 13 steps with geometry (LineString)"
+    },
+    {
+      "name": "GET /api/directions with multiple waypoints",
+      "status": "PASS",
+      "detail": "4 waypoints returns 26 steps across 3 legs with human-readable instructions"
+    },
+    {
+      "name": "Step instructions are human-readable",
+      "status": "PASS",
+      "detail": "Instructions contain direction words: 'Head onto', 'Turn left', 'Continue', etc."
+    },
+    {
+      "name": "GET /api/cache/stats returns osrm_matrix and directions stats",
+      "status": "PASS",
+      "detail": "osrm_matrix: {entries, maxsize=50, ttl_seconds=600, hits, misses, hit_rate}, directions: {entries, maxsize=200, ttl_seconds=30, hits, misses, hit_rate}"
+    },
+    {
+      "name": "Cache hit/miss counters increment correctly",
+      "status": "PASS",
+      "detail": "First call: X-Cache=MISS, misses++. Second call: X-Cache=HIT, hits++. Verified via /api/cache/stats"
+    },
+    {
+      "name": "POST /api/optimize returns valid results",
+      "status": "PASS",
+      "detail": "Returns 200 with algorithm, reasoning, total_distance_km, distance_source fields"
+    },
+    {
+      "name": "POST /api/optimize with algorithm=auto",
+      "status": "PASS",
+      "detail": "Returns 200, auto-selects appropriate algorithm"
+    },
+    {
+      "name": "Cache key rounding absorbs GPS jitter",
+      "status": "PASS",
+      "detail": "Coordinates differing in 5th decimal place return same cached result (4 decimal precision)"
+    }
+  ],
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_osrm_directions_cache.py",
+    "/app/test_reports/pytest/pytest_results_iter18.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "_maneuver_instruction() correctly generates human-readable instructions from OSRM maneuver type/modifier",
+    "_extract_steps() properly extracts steps from OSRM route legs with instruction, distance, duration, type, modifier, location, geometry",
+    "TTLCache for directions (30s TTL, 200 max) and osrm_matrix (600s TTL, 50 max) working correctly",
+    "Cache key rounding to 4 decimal places (~11m precision) absorbs GPS jitter effectively",
+    "X-Cache header correctly indicates HIT/MISS status",
+    "OSRM Route API is primary source, Mapbox is fallback (source field indicates which was used)"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_osrm_directions_cache.py"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "N/A (backend only testing)"
+  },
+  "test_credentials": "DEV_MODE=True uses dev-user-123, no credentials needed",
+  "seed_data_creation": "None - used Queensland coordinates within OSRM data coverage",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "OSRM Directions API and caching are fully functional. OSRM runs on localhost:5000 with Queensland OSM data. The /api/directions endpoint returns source='osrm' with geometry, distance, duration, steps. Cache stats available at /api/cache/stats showing osrm_matrix and directions cache metrics. Cache hit/miss counters work correctly with X-Cache header.",
+  "key_findings": {
+    "osrm_directions": "Working - returns source='osrm' with full route data",
+    "step_instructions": "Human-readable via _maneuver_instruction() function",
+    "cache_stats": "Both osrm_matrix and directions caches tracked with hits/misses/hit_rate",
+    "cache_behavior": "First call MISS, second call HIT with X-Cache header",
+    "cache_key_rounding": "4 decimal places (~11m) absorbs GPS jitter",
+    "osrm_matrix_cache": "TTL=600s (10 min), maxsize=50 for duration matrices",
+    "directions_cache": "TTL=30s, maxsize=200 for route directions"
+  },
+  "mocked_api": {
+    "has_mocked_apis": true,
+    "mocked_apis_list": ["Authentication is mocked via DEV_MODE env var (dev-user-123)"]
+  }
+}

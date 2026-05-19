@@ -1,0 +1,98 @@
+{
+  "summary": "Cluster-First Algorithm Auto-Upgrade Feature - All 9 tests passed. Verified that routes >40 stops auto-upgrade to cluster_first algorithm regardless of user-selected algorithm.",
+  "timestamp": "2026-04-06T16:00:00Z",
+  "total_tests": 9,
+  "passed": 9,
+  "failed": 0,
+  "tests": [
+    {
+      "name": "Health check GET /",
+      "status": "PASS",
+      "detail": "Returns 200"
+    },
+    {
+      "name": "GET /api/stops returns large dataset",
+      "status": "PASS",
+      "detail": "Returns 165 stops for dev-user-123"
+    },
+    {
+      "name": "POST /api/optimize algorithm=ortools upgrades to cluster_first",
+      "status": "PASS",
+      "detail": "165 stops with ortools correctly upgraded to cluster_first, response includes clusters array"
+    },
+    {
+      "name": "POST /api/optimize algorithm=alns upgrades to cluster_first",
+      "status": "PASS",
+      "detail": "165 stops with alns correctly upgraded to cluster_first"
+    },
+    {
+      "name": "POST /api/optimize algorithm=cluster_first works directly",
+      "status": "PASS",
+      "detail": "No double-wrapping, cluster_first works as expected"
+    },
+    {
+      "name": "POST /api/optimize algorithm=auto selects cluster_first",
+      "status": "PASS",
+      "detail": "Auto correctly selects cluster_first for >25 stops"
+    },
+    {
+      "name": "Cluster info structure validation",
+      "status": "PASS",
+      "detail": "Response includes clusters array with id, stop_count, centroid fields for polygon visualization"
+    },
+    {
+      "name": "Small route threshold verification",
+      "status": "PASS",
+      "detail": "CLUSTER_THRESHOLD=40 is correctly set in server.py"
+    },
+    {
+      "name": "GET /api/optimize/algorithms lists cluster_first",
+      "status": "PASS",
+      "detail": "cluster_first algorithm is listed with proper description"
+    }
+  ],
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_cluster_first_upgrade.py",
+    "/app/test_reports/pytest/pytest_results_iter17.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "CLUSTER_THRESHOLD=40 correctly enforces cluster_first for large routes",
+    "inner_algorithm parameter preserves user's preferred algorithm for per-cluster optimization",
+    "_global_two_opt_pass correctly fixes cross-boundary inefficiencies",
+    "Response correctly includes 'clusters' array when cluster_first is used",
+    "Algorithm field in response correctly shows 'cluster_first' when upgraded"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_cluster_first_upgrade.py"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "N/A (backend only testing)"
+  },
+  "test_credentials": "DEV_MODE=True uses dev-user-123, no credentials needed",
+  "seed_data_creation": "Using existing 165 stops in Caloundra/Meridan Plains QLD area",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Cluster-first auto-upgrade feature is working correctly. Routes >40 stops automatically use cluster_first as backbone, with user's chosen algorithm (ortools, alns, etc.) used within each cluster. Response includes 'clusters' array for polygon visualization. Global 2-opt pass fixes cross-boundary inefficiencies.",
+  "key_findings": {
+    "cluster_first_upgrade": "Working - ortools/alns/auto all correctly upgrade to cluster_first for 165 stops",
+    "threshold": "CLUSTER_THRESHOLD=40 correctly enforced",
+    "inner_algorithm": "User's preferred algorithm preserved for per-cluster optimization",
+    "clusters_response": "Response includes clusters array with id, stop_count, centroid, fill_color, border_color",
+    "global_2opt": "Global 2-opt pass working - logs show route improvements (e.g., 44.24 km → 29.49 km)"
+  },
+  "mocked_api": {
+    "has_mocked_apis": true,
+    "mocked_apis_list": ["Backend DEV_MODE=True with dev-user-123 mock stops data"]
+  }
+}

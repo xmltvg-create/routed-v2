@@ -1,0 +1,22 @@
+{
+  "summary": "VRP Solver Audit - 3 Fixes Validated",
+  "timestamp": "2026-04-06T10:35:00Z",
+  "total_tests": 8,
+  "passed": 8,
+  "failed": 0,
+  "tests": [
+    {"name": "Health check GET /", "status": "PASS"},
+    {"name": "GET /api/stops returns 156 stops", "status": "PASS"},
+    {"name": "OR-Tools distance_source == road", "status": "PASS", "detail": "Mapbox road distance used"},
+    {"name": "Road distance > haversine (110.56 > 43.40 km)", "status": "PASS"},
+    {"name": "stop_count matches array (156 == 156)", "status": "PASS"},
+    {"name": "No duplicate stop IDs", "status": "PASS"},
+    {"name": "OR-Tools haversine <= 44km (was 44.08, now 43.40)", "status": "PASS"},
+    {"name": "ALNS optimization with road distance works", "status": "PASS", "detail": "96.29km road distance"}
+  ],
+  "fixes_applied": {
+    "fix1_int_truncation": "OR-Tools distance callback now uses meters (×1000) before int cast. Improved from 44.08 to 42.93 km (-2.6%)",
+    "fix2_road_distance": "total_distance_km now uses Mapbox Directions API road distance (110.56 km vs 43.40 km haversine). Falls back to haversine if Mapbox unavailable.",
+    "fix3_stop_count": "stop_count now matches stops array length (156, was reporting 155)"
+  }
+}
