@@ -309,3 +309,21 @@ credentials.json
 *.pem
 *.key
 .credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+credentials.json
+*.pem
+*.key
+.credentials
