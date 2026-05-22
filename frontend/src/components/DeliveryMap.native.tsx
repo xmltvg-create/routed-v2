@@ -1700,65 +1700,46 @@ function processMessage(d) {
 
     // ── (1) Navigation Camera POV + (2) Dynamic Bearing ──────────────────
     if (d.type === 'drivingCamera') {
-      // DEBUG: Flash the screen border to confirm message is received
-      document.body.style.border = '5px solid lime';
-      setTimeout(function() { document.body.style.border = 'none'; }, 200);
+      // DEBUG: Make border stay visible
+      document.body.style.border = '8px solid lime';
       
-      // DEBUG: Check blocking conditions
       if (_easeInFlight) {
-        document.body.style.border = '5px solid orange'; // Orange = blocked by easeInFlight
+        document.body.style.borderColor = 'orange';
         return;
       }
-      if (!map) {
-        document.body.style.border = '5px solid red'; // Red = no map
-        return;
-      }
-      if (!map.loaded()) {
-        document.body.style.border = '5px solid purple'; // Purple = map not loaded
+      if (!map || !map.loaded()) {
+        document.body.style.borderColor = 'red';
         return;
       }
       
-      // Support both formats: {center: [lng,lat]} or {lng, lat}
       var rawLng = d.center ? d.center[0] : d.lng;
       var rawLat = d.center ? d.center[1] : d.lat;
       if (rawLng == null || rawLat == null) {
-        document.body.style.border = '5px solid yellow'; // Yellow = no coords
+        document.body.style.borderColor = 'yellow';
         return;
       }
       
       var bearing = d.bearing || 0;
       var finalCenter = [rawLng, rawLat];
-      
-      // Skip look-ahead for now - just use raw center
-      
-      // Speed-based auto-zoom
       var spd = d.speedMps || 0;
       var rawZoom = 18.5 - (spd / 25) * 4.5;
       var targetZoom = Math.max(14, Math.min(18.5, rawZoom));
       if (typeof _smoothedZoom === 'undefined') _smoothedZoom = 16.5;
       _smoothedZoom = _smoothedZoom * 0.7 + targetZoom * 0.3;
-      if (Math.abs(_smoothedZoom - targetZoom) < 0.05) _smoothedZoom = targetZoom;
 
-      // DEBUG: Blue flash = about to call easeTo
-      document.body.style.border = '5px solid blue';
-      
+      document.body.style.borderColor = 'blue';
       _easeInFlight = true;
-      try {
-        map.easeTo({
-          center: finalCenter,
-          bearing: bearing,
-          pitch: 60,
-          zoom: _smoothedZoom,
-          duration: 400,
-          easing: function(t) { return t * (2 - t); }
-        });
-        // DEBUG: Cyan = easeTo succeeded
-        document.body.style.border = '5px solid cyan';
-      } catch(e) {
-        // DEBUG: Magenta = easeTo failed
-        document.body.style.border = '5px solid magenta';
-      }
-      setTimeout(function() { _easeInFlight = false; document.body.style.border = 'none'; }, 420);
+      
+      map.easeTo({
+        center: finalCenter,
+        bearing: bearing,
+        pitch: 60,
+        zoom: _smoothedZoom,
+        duration: 400
+      });
+      
+      document.body.style.borderColor = 'cyan';
+      setTimeout(function() { _easeInFlight = false; }, 420);
     }
 
     // Enter/exit driving mode — toggles 3D buildings + route pulse
