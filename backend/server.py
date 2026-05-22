@@ -439,23 +439,22 @@ async def get_session_from_request(request: Request) -> Optional[UserSession]:
     if expires_at < now:
         return None
 
-    # ── Sliding-window session refresh ────────────────────────────────
-    # If the session is more than halfway to expiry (> 3.5 days old on a
-    # 7-day token), silently extend it by 7 days. This prevents drivers
-    # from getting kicked out mid-shift on day 7 — any active usage
-    # automatically keeps the session alive.
+    # ── Sliding-window session refresh on EVERY request ─────────────────
+    # Extend the session by 7 days on each API call. This keeps active
+    # users logged in indefinitely — only truly inactive sessions expire.
     _SESSION_LIFETIME = timedelta(days=7)
-    _REFRESH_THRESHOLD = _SESSION_LIFETIME / 2  # 3.5 days
-    remaining = expires_at - now
-    if remaining < _REFRESH_THRESHOLD:
-        new_expiry = now + _SESSION_LIFETIME
+    new_expiry = now + _SESSION_LIFETIME
+    
+    # Only update if expiry would actually change (avoid unnecessary DB writes)
+    # We use a 1-hour buffer to prevent updating on every single request
+    if (new_expiry - expires_at) > timedelta(hours=1):
         await db.user_sessions.update_one(
             {"session_token": session_token},
             {"$set": {"expires_at": new_expiry}},
         )
-        logger.info(
-            "[session-refresh] Extended session for user=%s, was %.1fh remaining, new expiry=%s",
-            session.get("user_id"), remaining.total_seconds() / 3600, new_expiry.isoformat(),
+        logger.debug(
+            "[session-refresh] Extended session for user=%s, new expiry=%s",
+            session.get("user_id"), new_expiry.isoformat(),
         )
     
     return UserSession(**session)
