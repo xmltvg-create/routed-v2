@@ -39,7 +39,7 @@
       "channel": "production",
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_BACKEND_URL": "https://fast-route-api.preview.emergentagent.com"
+        "EXPO_PUBLIC_BACKEND_URL": "https://floating-map-ui.emergent.host"
       },
       "android": {
         "buildType": "apk"
