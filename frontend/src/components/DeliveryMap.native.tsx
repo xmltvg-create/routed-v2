@@ -1700,7 +1700,10 @@ function processMessage(d) {
 
     // ── (1) Navigation Camera POV + (2) Dynamic Bearing ──────────────────
     if (d.type === 'drivingCamera') {
-      // TEMP: Removed _userInteracting check to debug camera follow
+      // DEBUG: Flash the screen border to confirm message is received
+      document.body.style.border = '5px solid lime';
+      setTimeout(function() { document.body.style.border = 'none'; }, 200);
+      
       if (_easeInFlight) return;
       if (!map || !map.loaded()) return; // Safety: map must be ready
       
