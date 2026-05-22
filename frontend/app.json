@@ -16,7 +16,9 @@
         "ITSAppUsesNonExemptEncryption": false
       },
       "bundleIdentifier": "com.routedopt.app",
-      "runtimeVersion": { "policy": "appVersion" }
+      "runtimeVersion": {
+        "policy": "appVersion"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -32,8 +34,10 @@
         "FOREGROUND_SERVICE_LOCATION"
       ],
       "package": "com.routedopt.app",
-      "versionCode": 79,
-      "runtimeVersion": { "policy": "appVersion" }
+      "versionCode": 80,
+      "runtimeVersion": {
+        "policy": "appVersion"
+      }
     },
     "androidStatusBar": {
       "backgroundColor": "#000000"
@@ -103,6 +107,8 @@
       }
     },
     "owner": "xxmltvguides-organization",
-    "runtimeVersion": { "policy": "appVersion" }
+    "runtimeVersion": {
+      "policy": "appVersion"
+    }
   }
 }
