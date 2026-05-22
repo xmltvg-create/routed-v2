@@ -57,6 +57,8 @@ export function useNavigationCamera(
   useEffect(() => { optsRef.current = options; },    [options]);
 
   useEffect(() => {
+    console.log('[NAV_CAM] Hook effect running. enabled:', options.enabled, 'mapReady:', options.mapReady);
+    
     if (!options.enabled || !options.mapReady) {
       // Tear down any active subscriptions when disabled
       posSubRef.current?.remove();
@@ -64,10 +66,12 @@ export function useNavigationCamera(
       posSubRef.current  = null;
       headSubRef.current = null;
       hasGpsCourseRef.current = false;
+      console.log('[NAV_CAM] Hook disabled or map not ready - subscriptions cleared');
       return;
     }
 
     let alive = true;
+    console.log('[NAV_CAM] Starting GPS subscriptions...');
 
     (async () => {
       // ── 1. Compass heading (fallback ONLY — used until the first valid GPS
@@ -79,6 +83,7 @@ export function useNavigationCamera(
         if (hasGpsCourseRef.current) return;  // GPS is authoritative once moving
         headingRef.current = h.trueHeading ?? h.magHeading ?? 0;
       });
+      console.log('[NAV_CAM] Compass subscription started');
 
       // ── 2. High-frequency position for camera smoothness ───────────────
       posSubRef.current = await Location.watchPositionAsync(
@@ -111,6 +116,7 @@ export function useNavigationCamera(
           // else: headingRef stays at its last good value (frozen)
 
           // Send raw GPS — the WebView computes pixel-space look-ahead offset
+          console.log('[NAV_CAM] Sending drivingCamera:', { lng: longitude.toFixed(5), lat: latitude.toFixed(5), bearing: headingRef.current.toFixed(1) });
           sendRef.current({
             type:     'drivingCamera',
             lng:      longitude,
