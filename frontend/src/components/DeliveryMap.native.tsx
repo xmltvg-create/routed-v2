@@ -1701,6 +1701,12 @@ function processMessage(d) {
     // ── (1) Navigation Camera POV + (2) Dynamic Bearing ──────────────────
     if (d.type === 'drivingCamera') {
       if (_userInteracting || _easeInFlight) return;
+      
+      // Support both formats: {center: [lng,lat]} or {lng, lat}
+      var centerLng = d.center ? d.center[0] : d.lng;
+      var centerLat = d.center ? d.center[1] : d.lat;
+      if (centerLng == null || centerLat == null) return;
+      
       // Speed-based auto-zoom with throttled smoothing
       var spd = d.speedMps || 0;
       // Compute target zoom: clamp(lerp(18.5 → 14, speed 0→25 m/s))
@@ -1716,7 +1722,7 @@ function processMessage(d) {
 
       _easeInFlight = true;
       map.easeTo({
-        center: d.center,
+        center: [centerLng, centerLat],
         bearing: d.bearing || 0,
         pitch: 60,
         zoom: _smoothedZoom,
