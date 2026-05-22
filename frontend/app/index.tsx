@@ -153,12 +153,24 @@ export default function LoginScreen() {
     let sessionId = rawSessionId;
     try { sessionId = decodeURIComponent(rawSessionId); } catch { /* leave as-is */ }
 
-    if (exchangedRef.current.has(sessionId)) return; // already consumed (this JS context)
-    if (inFlightRef.current === sessionId) return;   // in progress
+    console.log('[AUTH] exchangeSessionOnce called, sessionId prefix:', sessionId.substring(0, 20) + '...');
+
+    if (exchangedRef.current.has(sessionId)) {
+      console.log('[AUTH] Skip: already exchanged in this session');
+      return;
+    }
+    if (inFlightRef.current === sessionId) {
+      console.log('[AUTH] Skip: exchange already in flight');
+      return;
+    }
     // If another parallel handler already signed us in, bail silently — the
     // second exchange call would hit a demobackend 404 (one-shot session_id)
     // and spuriously surface "Sign-in failed" even though we ARE logged in.
-    if (user) { exchangedRef.current.add(sessionId); return; }
+    if (user) {
+      console.log('[AUTH] Skip: user already logged in');
+      exchangedRef.current.add(sessionId);
+      return;
+    }
 
     // OTA-reload ghost guard: `Updates.reloadAsync()` after a successful
     // sign-in resets every in-memory ref, and Android may redeliver the
