@@ -1938,8 +1938,8 @@ async def _run_import_inner(
         text = re.sub(r"\s+", " ", text)
         return text
     
-    # --- Concurrent geocoding with semaphore (5 parallel) ---
-    sem = asyncio.Semaphore(5)
+    # --- Concurrent geocoding with semaphore (10 parallel for faster imports) ---
+    sem = asyncio.Semaphore(10)
     
     async def geocode_row(idx, row):
         raw_address = _clean_import_address(row.get(field_mapping.address, ''))
@@ -1959,6 +1959,9 @@ async def _run_import_inner(
     
     tasks = [geocode_row(idx, row) for idx, row in df.iterrows()]
     results = await asyncio.gather(*tasks)
+    
+    # Collect all stops to insert in bulk (much faster than one-by-one)
+    stops_to_insert = []
     
     # Process results in order
     for result in results:
@@ -2023,9 +2026,8 @@ async def _run_import_inner(
                     tracking_number = tn_clean
 
         max_order += 1
+        # Extract suburb from geocoded address first (fast), only reverse-geocode if missing
         suburb = extract_suburb_from_address(geo_result.get("place_name", raw_address))
-        if not suburb:
-            suburb = await reverse_geocode_suburb(geo_result["latitude"], geo_result["longitude"])
 
         geocode_metadata = _build_stop_geocode_metadata(geo_result)
         geocode_metadata["import_original_address"] = raw_address
@@ -2037,7 +2039,7 @@ async def _run_import_inner(
             address=raw_address,
             name=name,
             mobile_number=mobile_number,
-            suburb=suburb,
+            suburb=suburb,  # May be None, we'll batch-fill later
             latitude=geo_result["latitude"],
             longitude=geo_result["longitude"],
             priority="medium",
@@ -2049,9 +2051,13 @@ async def _run_import_inner(
             order=max_order
         )
         
-        await db.stops.insert_one(stop.dict())
+        stops_to_insert.append(stop)
         created_stops.append(stop)
         success_count += 1
+    
+    # Bulk insert all stops at once (much faster than one-by-one)
+    if stops_to_insert:
+        await db.stops.insert_many([s.dict() for s in stops_to_insert])
     
     return ImportResult(
         success_count=success_count,
