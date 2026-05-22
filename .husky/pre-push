@@ -15,6 +15,12 @@
 #   git push --no-verify
 #   (use only when you know exactly why — usually never)
 
+# Suppress hook output in non-interactive contexts (like Emergent's git wrapper)
+# to avoid false 500 errors from ANSI escape codes being misread as failures.
+if [ ! -t 1 ]; then
+  exec >/dev/null 2>&1
+fi
+
 set -e
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
