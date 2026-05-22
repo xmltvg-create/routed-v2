@@ -50,13 +50,14 @@ const COLOR = {
 };
 
 export default function LoginScreen() {
-  const { user, loading, login, loginAsReviewer, loginWithEmail, registerWithEmail } = useAuth();
+  const { user, loading, login, loginAsReviewer, loginWithEmail, registerWithEmail, forceSetPassword } = useAuth();
   const router = useRouter();
   const [authLoading, setAuthLoading] = useState(false);
 
   // Email/password fallback login
   const [showEmailLogin, setShowEmailLogin] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
+  const [isSettingPassword, setIsSettingPassword] = useState(false);
   const [emailInput, setEmailInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [nameInput, setNameInput] = useState('');
@@ -70,7 +71,10 @@ export default function LoginScreen() {
     }
     try {
       setAuthLoading(true);
-      if (isRegistering) {
+      if (isSettingPassword) {
+        // Set password for existing Google account
+        await forceSetPassword(emailInput.trim(), passwordInput);
+      } else if (isRegistering) {
         await registerWithEmail(emailInput.trim(), passwordInput, nameInput.trim());
       } else {
         await loginWithEmail(emailInput.trim(), passwordInput);
@@ -466,16 +470,28 @@ export default function LoginScreen() {
                 style={[styles.reviewerBtn, styles.reviewerBtnPrimary, { alignSelf: 'stretch', paddingVertical: 14 }]}
               >
                 <Text style={[styles.reviewerBtnText, { fontSize: 15 }]}>
-                  {authLoading ? 'Please wait...' : isRegistering ? 'Create Account' : 'Sign In'}
+                  {authLoading ? 'Please wait...' : isSettingPassword ? 'Set Password & Sign In' : isRegistering ? 'Create Account' : 'Sign In'}
                 </Text>
               </Pressable>
+              {!isSettingPassword && (
+                <Pressable
+                  data-testid="email-toggle-register"
+                  onPress={() => { setIsRegistering(!isRegistering); setEmailError(''); }}
+                  hitSlop={8}
+                >
+                  <Text style={[styles.tertiaryText, { textAlign: 'center' }]}>
+                    {isRegistering ? 'Already have an account? Sign in' : "Don't have an account? Register"}
+                  </Text>
+                </Pressable>
+              )}
               <Pressable
-                data-testid="email-toggle-register"
-                onPress={() => { setIsRegistering(!isRegistering); setEmailError(''); }}
+                data-testid="google-user-set-password"
+                onPress={() => { setIsSettingPassword(!isSettingPassword); setIsRegistering(false); setEmailError(''); }}
                 hitSlop={8}
+                style={{ marginTop: 8 }}
               >
-                <Text style={[styles.tertiaryText, { textAlign: 'center' }]}>
-                  {isRegistering ? 'Already have an account? Sign in' : "Don't have an account? Register"}
+                <Text style={[styles.tertiaryText, { textAlign: 'center', color: COLOR.accent }]}>
+                  {isSettingPassword ? '← Back to normal sign in' : 'Google user? Set a password to sign in'}
                 </Text>
               </Pressable>
             </View>

@@ -42,6 +42,8 @@ interface AuthContextType {
   loginWithEmail: (email: string, password: string) => Promise<void>;
   /** Email/password registration. Creates a new account. */
   registerWithEmail: (email: string, password: string, name: string) => Promise<void>;
+  /** Set password for existing Google-only account (no login required). */
+  forceSetPassword: (email: string, newPassword: string) => Promise<void>;
   logout: () => Promise<void>;
   /** Re-runs the Emergent Google OAuth flow in-place (single browser tap)
    *  to re-issue an expired session_token. Returns true if the user came
@@ -333,6 +335,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const forceSetPassword = async (email: string, newPassword: string) => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${BACKEND_URL}/api/auth/force-set-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, new_password: newPassword }),
+      });
+
+      if (!response.ok) {
+        let detail = '';
+        try {
+          const j = await response.json();
+          detail = typeof j?.detail === 'string' ? j.detail : '';
+        } catch { /* ignore */ }
+        throw new Error(detail || `Failed to set password (HTTP ${response.status})`);
+      }
+
+      const userData = await response.json();
+      await AsyncStorage.setItem('session_token', userData.session_token);
+      setUser(userData);
+    } catch (error) {
+      console.error('Force set password error:', error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const logout = async () => {
     try {
       const token = await AsyncStorage.getItem('session_token');
@@ -354,7 +385,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, login, loginAsReviewer, loginWithEmail, registerWithEmail, logout, reconnect, reconnecting }}
+      value={{ user, loading, login, loginAsReviewer, loginWithEmail, registerWithEmail, forceSetPassword, logout, reconnect, reconnecting }}
     >
       {children}
     </AuthContext.Provider>

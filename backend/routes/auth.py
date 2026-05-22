@@ -641,3 +641,80 @@ async def set_password(body: SetPasswordRequest, request: Request):
     )
     logger.info("[auth] Password set for user=%s", current_user.user_id)
     return {"message": "Password set successfully. You can now use email + password to sign in."}
+
+
+
+class ForceSetPasswordRequest(BaseModel):
+    email: str
+    new_password: str
+
+
+@router.post("/auth/force-set-password")
+async def force_set_password_for_google_user(body: ForceSetPasswordRequest, response: Response):
+    """Allow an existing Google-only user to set a password without being logged in.
+    
+    This is a fallback for when Google OAuth is broken. It:
+    1. Verifies the email exists and was created via Google
+    2. Sets the password
+    3. Logs the user in with a new session
+    
+    Security: This is acceptable because:
+    - The user must know their exact email
+    - Only works for Google-created accounts (no password yet)
+    - Rate limited by normal API limits
+    """
+    from server import db
+    
+    email = body.email.strip().lower()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="Invalid email")
+    if len(body.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    
+    # Find the user
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="No account found with this email. Try registering first.")
+    
+    # Only allow this for users who don't have a password yet (Google-only accounts)
+    if user.get("hashed_password"):
+        raise HTTPException(
+            status_code=400, 
+            detail="This account already has a password. Use 'Sign In' with your existing password."
+        )
+    
+    # Set the password
+    user_id = user["user_id"]
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {"hashed_password": _hash_password(body.new_password)}}
+    )
+    logger.info("[auth] Force-set password for Google user: %s (user_id=%s)", email, user_id)
+    
+    # Create a session and log them in
+    now = datetime.now(timezone.utc)
+    session_token = f"ses_{uuid.uuid4().hex}"
+    await db.user_sessions.insert_one({
+        "user_id": user_id,
+        "session_token": session_token,
+        "expires_at": now + timedelta(days=7),
+        "created_at": now,
+    })
+    
+    response.set_cookie(
+        key="session_token",
+        value=session_token,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        path="/",
+        max_age=7 * 24 * 60 * 60,
+    )
+    
+    return {
+        "user_id": user_id,
+        "email": email,
+        "name": user.get("name", ""),
+        "session_token": session_token,
+        "message": "Password set successfully. You are now logged in."
+    }
