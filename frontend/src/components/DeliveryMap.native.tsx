@@ -1943,6 +1943,13 @@ window.handleMessage = function(msg) {
     if (d.type === 'drivingCamera') document.body.style.outlineColor = 'lime';
     else if (d.type === 'updateDriver') document.body.style.outlineColor = 'blue';
     else if (d.type === 'setDrivingMode') document.body.style.outlineColor = 'yellow';
+    else if (d.type === 'debugCameraSkip') {
+      // Show why camera is being skipped - pink border
+      document.body.style.outlineColor = 'magenta';
+      document.body.style.outlineWidth = '6px';
+      // Post back debug info
+      post({type:'debug', skip: d});
+    }
     else document.body.style.outlineColor = 'orange';
     
     if (!_layersReady) { _pendingMessages.push(d); return; }
@@ -2284,14 +2291,19 @@ const DeliveryMapInner = forwardRef<DeliveryMapRef, DeliveryMapProps>(function D
       const lng = driverLocation.longitude + Math.sin(rad) * LOOK_AHEAD;
       const lat = driverLocation.latitude + Math.cos(rad) * LOOK_AHEAD;
 
-      // Debug: Log that we're sending the camera message
-      console.log('[LEGACY_CAM] Sending drivingCamera:', { lng: lng.toFixed(5), lat: lat.toFixed(5), hdg: hdg.toFixed(1) });
-
       sendMsg({
         type: 'drivingCamera',
         center: [lng, lat],
         bearing: hdg,
         speedMps: (speed ?? 0) / 3.6, // convert km/h back to m/s for zoom calc
+      });
+    } else {
+      // DEBUG: Send a message showing why camera isn't following
+      sendMsg({
+        type: 'debugCameraSkip',
+        hasDriverLocation: !!driverLocation,
+        followDriver: !!followDriver,
+        highFreqCameraActive: !!highFreqCameraActive,
       });
     }
   }, [driverLocation, followDriver, speed, mapReady, sendMsg, highFreqCameraActive]);
