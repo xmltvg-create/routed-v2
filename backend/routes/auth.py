@@ -153,56 +153,94 @@ async def exchange_session(request: Request, response: Response):
     """Exchange `X-Session-ID` for user data + persistent session cookie."""
     # Imported lazily to avoid a circular import at module load time.
     from server import db, User  # noqa: F401  (User kept for type clarity)
+    import asyncio as _auth_asyncio
 
     session_id = request.headers.get("X-Session-ID")
     if not session_id:
         raise HTTPException(status_code=400, detail="Missing X-Session-ID header")
 
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        # Retry once on 5xx — production pods briefly 502 during LKH
-        # compile restarts. A single retry 1.5s later catches >90% of
-        # transient gateway errors the user sees as "502" on login.
-        for attempt in range(2):
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        # Retry up to 3 times with exponential backoff for transient errors.
+        # 404 can occur if the session isn't propagated yet (race condition
+        # between Google redirect and Emergent's session store). 5xx errors
+        # happen during pod restarts/deployments. Backoff: 1s, 2s, 4s.
+        max_attempts = 3
+        auth_response = None
+        last_error = None
+        
+        for attempt in range(max_attempts):
             try:
                 auth_response = await client.get(
                     "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
                     headers={"X-Session-ID": session_id},
                 )
-                if auth_response.status_code < 500:
-                    break  # Success or client error (4xx) — don't retry
-                if attempt == 0:
-                    import asyncio as _auth_asyncio
-                    logger.warning(
-                        "[auth] demobackend returned %s on attempt 1, retrying in 1.5s",
-                        auth_response.status_code,
-                    )
-                    await _auth_asyncio.sleep(1.5)
-            except HTTPException:
-                raise
-            except Exception as e:
-                if attempt == 0:
-                    import asyncio as _auth_asyncio
-                    logger.warning("[auth] exchange attempt 1 failed (%s), retrying", e)
-                    await _auth_asyncio.sleep(1.5)
+                
+                # Success — break out
+                if auth_response.status_code == 200:
+                    break
+                
+                # 404 can be a race condition — the session might not be ready yet
+                # 5xx is a server-side transient error
+                if auth_response.status_code in (404, 500, 502, 503, 504):
+                    if attempt < max_attempts - 1:
+                        delay = (2 ** attempt)  # 1s, 2s, 4s
+                        logger.warning(
+                            "[auth] demobackend returned %s on attempt %d/%d, retrying in %ss",
+                            auth_response.status_code, attempt + 1, max_attempts, delay,
+                        )
+                        await _auth_asyncio.sleep(delay)
+                        continue
+                
+                # 4xx other than 404 — don't retry (bad request, unauthorized, etc.)
+                break
+                
+            except httpx.TimeoutException:
+                last_error = "Request timed out"
+                if attempt < max_attempts - 1:
+                    delay = (2 ** attempt)
+                    logger.warning("[auth] timeout on attempt %d/%d, retrying in %ss", attempt + 1, max_attempts, delay)
+                    await _auth_asyncio.sleep(delay)
                     continue
+            except httpx.RequestError as e:
+                last_error = str(e)
+                if attempt < max_attempts - 1:
+                    delay = (2 ** attempt)
+                    logger.warning("[auth] network error on attempt %d/%d (%s), retrying in %ss", attempt + 1, max_attempts, e, delay)
+                    await _auth_asyncio.sleep(delay)
+                    continue
+            except Exception as e:
+                last_error = str(e)
                 err_class = type(e).__name__
-                logger.error("[auth] exchange exception (%s): %s", err_class, e)
+                logger.error("[auth] unexpected error (%s): %s", err_class, e)
                 raise HTTPException(
                     status_code=401,
                     detail=f"Authentication failed ({err_class})",
                 )
 
+        # Check final result
+        if auth_response is None:
+            logger.error("[auth] all %d attempts failed, last_error=%s", max_attempts, last_error)
+            raise HTTPException(
+                status_code=401,
+                detail=f"Authentication service unreachable. Please try again. ({last_error})",
+            )
+        
         if auth_response.status_code != 200:
             upstream_status = auth_response.status_code
             logger.warning(
                 "[auth] demobackend returned %s for session-id exchange "
-                "(session_id_len=%d)",
-                upstream_status, len(session_id or ""),
+                "(session_id_len=%d) after %d attempts",
+                upstream_status, len(session_id or ""), max_attempts,
             )
-            raise HTTPException(
-                status_code=401,
-                detail=f"Invalid session (upstream {upstream_status})",
-            )
+            # User-friendly error messages
+            if upstream_status == 404:
+                detail = "Session expired or already used. Please tap 'Continue with Google' again."
+            elif upstream_status >= 500:
+                detail = "Google sign-in service is temporarily unavailable. Please try again in a moment."
+            else:
+                detail = f"Sign-in failed (error {upstream_status}). Please try again."
+            raise HTTPException(status_code=401, detail=detail)
+        
         user_data = auth_response.json()
 
     session_data = SessionDataResponse(**user_data)
