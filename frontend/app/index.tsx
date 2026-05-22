@@ -53,6 +53,48 @@ export default function LoginScreen() {
   const { user, loading, login, loginAsReviewer, loginWithEmail, registerWithEmail, forceSetPassword } = useAuth();
   const router = useRouter();
   const [authLoading, setAuthLoading] = useState(false);
+  const [backendWaking, setBackendWaking] = useState(true);
+
+  // Wake up the backend on app launch (Emergent hosting sleeps when idle)
+  useEffect(() => {
+    const wakeUpBackend = async () => {
+      try {
+        console.log('[WAKE] Pinging backend to wake it up...');
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+        
+        const response = await fetch(`${BACKEND_URL}/api/health`, {
+          method: 'GET',
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        
+        if (response.ok) {
+          console.log('[WAKE] Backend is awake!');
+        } else {
+          console.log('[WAKE] Backend responded with:', response.status);
+        }
+      } catch (error: any) {
+        if (error.name === 'AbortError') {
+          console.log('[WAKE] Backend wake-up timed out (may still be starting)');
+        } else {
+          console.log('[WAKE] Backend wake-up error:', error.message);
+        }
+        // Retry once after 2 seconds if first attempt fails
+        try {
+          await new Promise(r => setTimeout(r, 2000));
+          await fetch(`${BACKEND_URL}/api/health`);
+          console.log('[WAKE] Backend awake on retry');
+        } catch {
+          console.log('[WAKE] Backend still waking up...');
+        }
+      } finally {
+        setBackendWaking(false);
+      }
+    };
+    
+    wakeUpBackend();
+  }, []);
 
   // Email/password fallback login
   const [showEmailLogin, setShowEmailLogin] = useState(false);
@@ -345,7 +387,7 @@ export default function LoginScreen() {
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="small" color={COLOR.accent} />
           <Text style={styles.loadingText}>
-            {authLoading ? 'Signing you in…' : 'Booting the cockpit…'}
+            {authLoading ? 'Signing you in…' : backendWaking ? 'Connecting to server…' : 'Booting the cockpit…'}
           </Text>
         </View>
       </View>
