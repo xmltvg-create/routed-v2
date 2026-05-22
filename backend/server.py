@@ -9520,8 +9520,10 @@ async def save_van_layout(
 
 
 @api_router.get("/health")
+@api_router.head("/health")
 async def health_check():
-    """Health check endpoint with MongoDB connection verification"""
+    """Health check endpoint with MongoDB connection verification.
+    Supports both GET and HEAD methods for uptime monitoring services."""
     try:
         # Verify MongoDB connection
         await db.command('ping')
@@ -9968,8 +9970,10 @@ async def root_probe():
 
 # Root-level health check for Kubernetes probes (without /api prefix)
 @app.get("/health")
+@app.head("/health")
 async def root_health_check():
-    """Root health check endpoint for Kubernetes liveness/readiness probes"""
+    """Root health check endpoint for Kubernetes liveness/readiness probes.
+    Supports both GET and HEAD methods for uptime monitoring services."""
     try:
         # Quick ping to verify MongoDB connection
         await db.command('ping')
