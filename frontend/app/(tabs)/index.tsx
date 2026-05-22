@@ -2997,7 +2997,8 @@ export default function RouteScreen() {
   }, [viewMode, traveledPath]);
 
   // Follow driver in navigation mode
-  const mapFollowDriver = viewMode === 'navigating' && isNavigating;
+  // TEMP: Force follow when in navigating viewMode (debug camera issue)
+  const mapFollowDriver = viewMode === 'navigating';
 
   // Handle stop click from DeliveryMap
   const handleMapStopClick = useCallback((stopId: string) => {
