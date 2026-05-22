@@ -1751,23 +1751,21 @@ export default function RouteScreen() {
       setClusterOverlays([]); // Clear cluster overlays during driving
 
       // Compass subscription — gives us a heading immediately, even while
-      // stationary. Yields to GPS course-over-ground once the driver is
+      // stationary. We store the value in a REF ONLY (no setState) so
+      // magnetometer noise (~10 Hz) doesn't trigger re-renders / camera
+      // easeTo storms. The GPS watcher below (~1.25 Hz) reads this ref
+      // each tick and uses it as fallback heading when GPS course is
+      // invalid. Yields to GPS course-over-ground once the driver is
       // confidently moving (hasGpsCourseRef set in the position watcher
       // below). This is what makes the puck/map rotate at standstill the
-      // way Google Maps does.
+      // way Google Maps does, without the flicker.
       hasGpsCourseRef.current = false;
       try {
         headingSubscription.current = await Location.watchHeadingAsync((h) => {
           if (hasGpsCourseRef.current) return; // GPS is authoritative once moving
           const compass = (h.trueHeading >= 0 ? h.trueHeading : h.magHeading) ?? 0;
           compassHeadingRef.current = compass;
-          // Update currentLocation so the map prop reflects the new bearing
-          const prev = currentLocationRef.current;
-          if (prev) {
-            const next = { ...prev, heading: compass };
-            currentLocationRef.current = next;
-            setCurrentLocation(next);
-          }
+          // NO setState here — GPS watcher tick will pick this up.
         });
       } catch (e) {
         console.log('[compass] watchHeadingAsync failed:', e);
@@ -1797,7 +1795,17 @@ export default function RouteScreen() {
           // GPS course-over-ground is more accurate for in-vehicle nav.
           if (hasValidCourse) hasGpsCourseRef.current = true;
           const lastHeading = currentLocationRef.current?.heading ?? compassHeadingRef.current;
-          const newHeading = hasValidCourse ? (rawGpsHeading as number) : lastHeading;
+          // Pick target heading: GPS when moving, compass when not.
+          const targetHeading = hasValidCourse
+            ? (rawGpsHeading as number)
+            : compassHeadingRef.current;
+          // Low-pass filter — smooth bearing changes between ticks so the
+          // camera glides rather than snapping. Handles 0°↔360° wrap so
+          // we don't flick the long way round (e.g. 350°→10° should be +20°,
+          // not -340°).
+          let delta = ((targetHeading - lastHeading + 540) % 360) - 180;
+          const smoothedHeading = (lastHeading + delta * 0.35 + 360) % 360;
+          const newHeading = smoothedHeading;
 
           const newLocation = {
             latitude: location.coords.latitude,
