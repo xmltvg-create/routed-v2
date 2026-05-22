@@ -2078,3 +2078,27 @@ User feedback: "The route optimizer is producing zig-zag patterns on large route
 - **`auto` resolves to `vroom_lkh_3opt` for ≥11 stops** (`server.py` line ~4748): previously resolved to raw VROOM; cascade is now `VROOM seed → LKH refine → 3-opt polish (only if monotonic improvement)` — strictly ≥ VROOM-alone quality at <100 ms latency cost.
 - **Verified 2026-04-25**: 51/51 pytest pass (`test_open_path_tsp.py`, `test_pyvrp_duplicate_coords.py`, `test_solver_hamiltonicity.py`, new `test_optimize_api.py`). Live `/api/optimize` returns Hamiltonian paths for `auto/lkh/pyvrp/vroom/ortools/three_opt/vroom_lkh_3opt` on synthetic 12 + 30-stop SE-Queensland fixtures with `time_savings` populated correctly. No frontend changes required — these are pure backend numerical fixes.
 
+
+## API backend → Fly.io migration setup (2026-05-22)
+
+- **Problem (recurring)**: Emergent-hosted backend (`floating-map-ui.emergent.host`) sleeps after idle → drivers hit 502 Bad Gateway and "not authorised" errors mid-route. Earlier mitigations (UptimeRobot HEAD ping, in-app wake-up ping on launch) reduce but don't eliminate cold starts.
+- **Decision**: migrate the FastAPI backend off Emergent hosting to **Fly.io** (Sydney region) with `min_machines_running=1` + `auto_stop_machines=false` so the API is genuinely always-on. Cost ≈ $5/mo for shared-cpu-1x/1GB.
+- **Files shipped this session** (all in `/app/backend/`):
+  - `Dockerfile.flyio` — python:3.11-slim base, installs `libgomp1` (OR-Tools), `git` (for `/api/healthz/version`), `build-essential`, then `pip install -r requirements.txt`. Runs `uvicorn server:app` on `$PORT` (8080).
+  - `fly.toml` — app=`routed-api`, region=`syd`, internal_port=8080, force_https, healthcheck on `GET /health` every 30s, `min_machines_running=1`, `auto_stop_machines=false`, 1 GB RAM. Mount block for `/app/tiles` is provided but commented out (uncomment after `fly volumes create tiles_data --size 3 --region syd` if buildings.db is needed).
+  - `.dockerignore` — strips tests, `.env`, xlsx exports, `__pycache__`, `.git`.
+  - `deploy-fly.sh` — idempotent one-shot wrapper around `flyctl secrets set --stage` + `flyctl deploy --remote-only` + 30s log tail. Required env: `MONGO_URL`, `DB_NAME`, `EMERGENT_LLM_KEY`. Optional: all Stripe, Reviewer, AWS, Mapbox, OSRM, signup-gate vars (pushed only if exported).
+  - `FLY_DEPLOY.md` — end-to-end 10-minute guide (CLI install → `fly launch --no-deploy` → secrets via the script → verify with `curl /health` → repoint `EXPO_PUBLIC_BACKEND_URL` and rebuild EAS APK). Includes day-2 ops table (deploy, logs, rollback, scale, SSH) and troubleshooting (Mongo timeout, OR-Tools ImportError, CORS).
+- **MongoDB strategy**: current `MONGO_URL=mongodb://localhost:27017` ties the API to the Emergent pod. Recommended swap → **MongoDB Atlas free M0** in `ap-southeast-2 (Sydney)`. `FLY_DEPLOY.md` documents the `mongodump`/`mongorestore` migration steps (user_sessions, stops, route_history must come along or drivers lose their data + auth). Atlas networking: add `0.0.0.0/0` to access list (Fly egress IPs aren't static; password auth still enforced).
+- **Verification done in pod**: `bash -n deploy-fly.sh` (syntax OK); Python `tomllib.load(fly.toml)` (parses OK, all expected keys present); no changes to `server.py` were needed — Dockerfile honours the existing `PORT` env var.
+- **Pending (user-side, requires their local machine)**: install `flyctl`, run `fly launch --no-deploy --copy-config --dockerfile Dockerfile.flyio`, run `./deploy-fly.sh` with secrets exported. Then update `frontend/.env` → `EXPO_PUBLIC_BACKEND_URL=https://routed-api.fly.dev` and trigger `eas build --profile production-apk`.
+
+## Pending: driving-mode camera not following driver (recurring, 4th attempt)
+
+- User reported the WebView debug border flashes **RED** during navigation. That confirms `postMessage` from the WebView is being received by `DeliveryMap.native.tsx`, but the path that should re-emit `drivingCamera` to React Native is not firing (or the React side is ignoring it).
+- **Next-session debug plan**:
+  1. Re-read `/app/frontend/src/components/DeliveryMap.native.tsx` around the `onMessage` handler — look for an early `return` or a `type === 'drivingCamera'` branch that's gated on `highFreqCameraActive` even though we explicitly disabled the high-freq path.
+  2. Re-read `/app/frontend/app/(tabs)/index.tsx` `useNavigationCamera` hook — confirm the prop passed to `<DeliveryMap>` actually reads the latest GPS fix on each tick (likely stale-closure on a `setInterval`).
+  3. Add a one-shot `console.log` in BOTH the WebView `injectedJavaScriptBeforeContentLoaded` AND the React `onMessage` to print a counter; user can `adb logcat | grep cam-tick` to see which side dies.
+  4. Reminder: any code change requires a new `eas build --profile production-apk`; the user's Emergent preview build ignores OTA.
+

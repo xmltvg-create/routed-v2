@@ -1,0 +1,51 @@
+# fly.toml — RouTeD FastAPI backend
+# Docs: https://fly.io/docs/reference/configuration/
+#
+# Generate this file's secrets via:
+#   flyctl secrets set MONGO_URL="..." DB_NAME="routed" ...
+# Never commit secrets into this file.
+
+app = "routed-api"           # CHANGE to your unique app name (must match `fly launch`)
+primary_region = "syd"       # Sydney — closest to AU drivers. Change as needed.
+
+[build]
+  dockerfile = "Dockerfile.flyio"
+
+[env]
+  # Non-secret env vars only. Secrets go via `flyctl secrets set ...`
+  PORT = "8080"
+  PYTHONUNBUFFERED = "1"
+  # Force-keep machine running so cold starts don't bite drivers mid-route
+  # (Fly auto-stop is disabled below via min_machines_running)
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false          # critical: never sleep
+  auto_start_machines = true
+  min_machines_running = 1            # always-on, fixes the 502 sleep bug
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 200
+    soft_limit = 150
+
+  # Fly's external health check — uses the GET /health endpoint defined in server.py
+  [[http_service.checks]]
+    grace_period = "30s"
+    interval = "30s"
+    method = "GET"
+    timeout = "5s"
+    path = "/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"                       # OR-Tools + pandas needs headroom
+  cpus = 1
+  cpu_kind = "shared"
+
+# Mounted volume for the buildings tile DB (~/app/tiles/buildings.db)
+# Uncomment after running: `flyctl volumes create tiles_data --size 3 --region syd`
+# [mounts]
+#   source = "tiles_data"
+#   destination = "/app/tiles"
