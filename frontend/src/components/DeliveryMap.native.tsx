@@ -1934,8 +1934,17 @@ function processMessage(d) {
 }
 
 window.handleMessage = function(msg) {
+  // DEBUG: Show ANY message received
+  document.body.style.outline = '3px solid red';
+  
   try {
     var d = JSON.parse(msg);
+    // DEBUG: Show message type in border color
+    if (d.type === 'drivingCamera') document.body.style.outlineColor = 'lime';
+    else if (d.type === 'updateDriver') document.body.style.outlineColor = 'blue';
+    else if (d.type === 'setDrivingMode') document.body.style.outlineColor = 'yellow';
+    else document.body.style.outlineColor = 'orange';
+    
     if (!_layersReady) { _pendingMessages.push(d); return; }
     processMessage(d);
   } catch(e) {
