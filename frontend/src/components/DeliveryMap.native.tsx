@@ -366,7 +366,7 @@ var _interactionTimer = null;
 var _easeInFlight = false;
 var _tileCache = {};
 var _tileLoading = false;
-var _backendUrl = '${process.env.EXPO_PUBLIC_BACKEND_URL || ''}';
+var _backendUrl = '${_BACKEND_FOR_STYLE}';
 // Cache guards: skip redundant setData() calls when the set of visible tile
 // keys hasn't changed. Prevents a per-moveend GPU re-upload of thousands of
 // building extrusions during driving mode (easeTo fires moveend every ~400ms).
