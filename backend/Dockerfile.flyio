@@ -43,6 +43,14 @@ RUN pip install --upgrade pip \
 # Copy backend source
 COPY backend/ ./
 
+# Copy the self-hosted QLD building tiles SQLite DB (~64 MB).
+# server.py loads this from {ROOT_DIR.parent}/tiles/buildings.db at request
+# time and returns empty FeatureCollections if the file is missing — which
+# is what happened on the first Fly deploy (no buildings rendered in nav
+# mode). Baking it into the image is the simplest fix; if we ever exceed
+# Fly's 8 GB image limit we'll switch to a mounted volume.
+COPY tiles/buildings.db /app/tiles/buildings.db
+
 # Fly routes HTTPS → internal port 8080 (see fly.toml)
 ENV PORT=8080
 EXPOSE 8080
