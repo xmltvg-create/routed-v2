@@ -1796,16 +1796,13 @@ export default function RouteScreen() {
           if (hasValidCourse) hasGpsCourseRef.current = true;
           const lastHeading = currentLocationRef.current?.heading ?? compassHeadingRef.current;
           // Pick target heading: GPS when moving, compass when not.
-          const targetHeading = hasValidCourse
+          // No JS-side smoothing here — the WebView-side `animateBearing`
+          // lerp (~60 fps in DeliveryMap.native.tsx) is the single source
+          // of visual smoothness. Adding a second filter caused the puck to
+          // visibly lag the GPS truth.
+          const newHeading = hasValidCourse
             ? (rawGpsHeading as number)
             : compassHeadingRef.current;
-          // Low-pass filter — smooth bearing changes between ticks so the
-          // camera glides rather than snapping. Handles 0°↔360° wrap so
-          // we don't flick the long way round (e.g. 350°→10° should be +20°,
-          // not -340°).
-          let delta = ((targetHeading - lastHeading + 540) % 360) - 180;
-          const smoothedHeading = (lastHeading + delta * 0.35 + 360) % 360;
-          const newHeading = smoothedHeading;
 
           const newLocation = {
             latitude: location.coords.latitude,
@@ -3592,8 +3589,7 @@ export default function RouteScreen() {
           // mode) we must tell the WebView NOT to also fire its own React-
           // driven `drivingCamera` writes — both writers racing produces the
           // visible "camera snapping" tug-of-war every ~250 ms.
-          // TEMP: Disabled highFreqCameraActive to use legacy camera path
-          highFreqCameraActive={false}
+          highFreqCameraActive={isNavigating && viewMode === 'navigating'}
           onStopClick={handleMapStopClick}
           onMapReady={() => { setIsMapReady(true); mapRef.current?.setNogoZones(nogoZones); }}
           onBlockRoadTap={handleBlockRoadTap}
