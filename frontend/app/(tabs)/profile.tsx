@@ -10,11 +10,14 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../src/context/AuthContext';
 import { useStopsStore } from '../../src/store/stopsStore';
 import { TelemetryCard } from '../../src/components/TelemetryCard';
 import { MLServiceTimeCard } from '../../src/components/MLServiceTimeCard';
 import { MLBuildingSideCard } from '../../src/components/MLBuildingSideCard';
+
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
@@ -22,6 +25,44 @@ export default function ProfileScreen() {
   const { stops, clearStops, archiveRoute } = useStopsStore();
   const [archiving, setArchiving] = React.useState(false);
   const [saveResult, setSaveResult] = React.useState<{ ok: boolean; message: string } | null>(null);
+
+  // Stale-session auto-recovery — when the app's stored session_token was
+  // minted against a DB the backend no longer uses (e.g., after the
+  // Atlas/Fly migration moved data from `test_database` → `routed`), the
+  // token will validate /api/auth/me via a fallback but 401 on every other
+  // protected endpoint. Driver sees "Total Stops: 0" + 3 "HTTP 401" cards
+  // and there's no obvious recovery — they have to scroll to find Logout.
+  // Probe /api/stops on mount; if it's a hard 401 with a token in storage,
+  // wipe it and bounce to the login screen so the next session is clean.
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const token = await AsyncStorage.getItem('session_token');
+      if (!token || !user) return; // nothing to recover from
+      try {
+        const r = await fetch(`${BACKEND_URL}/api/stops`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (cancelled) return;
+        if (r.status === 401) {
+          // Token is corrupt for this backend. Clear & bounce.
+          await logout();
+          clearStops();
+          Alert.alert(
+            'Session expired',
+            'Your sign-in expired after a backend update. Please sign in again to refresh.',
+            [{ text: 'OK', onPress: () => router.replace('/') }],
+          );
+        }
+      } catch {
+        // Network errors aren't a stale-session signal; ignore.
+      }
+    })();
+    return () => { cancelled = true; };
+    // user is the only thing that matters — we want one probe per real
+    // login, not one per render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.user_id]);
 
   const completedCount = React.useMemo(
     () => stops.filter((s) => s.completed).length,
