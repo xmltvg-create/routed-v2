@@ -118,6 +118,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (response.ok) {
           const userData = await response.json();
+          // Secondary probe — /api/auth/me has a fallback path that can
+          // succeed even when the session_token has been orphaned by a
+          // DB migration (the throwaway-user / wrong-DB scenario we hit
+          // moving from test_database → routed). If the token is truly
+          // valid for THIS backend it must also satisfy the canonical
+          // protected route. If it doesn't, treat the token as dead and
+          // force a clean re-login so the user doesn't get stuck staring
+          // at "0 stops" + "HTTP 401" cards everywhere.
+          try {
+            const stopsResponse = await fetch(`${BACKEND_URL}/api/stops`, {
+              headers: { 'Authorization': `Bearer ${token}` },
+            });
+            if (stopsResponse.status === 401) {
+              await AsyncStorage.removeItem('session_token');
+              setUser(null);
+              return;
+            }
+          } catch {
+            // Network errors aren't a stale-session signal; keep the
+            // partially-validated session.
+          }
           setUser(userData);
         } else {
           await AsyncStorage.removeItem('session_token');
