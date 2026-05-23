@@ -381,6 +381,17 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
             </View>
             <TouchableOpacity 
               style={styles.immersiveVoiceBtn}
+              onPress={onShowRouteOverview}
+              testID="immersive-route-overview-toggle"
+            >
+              <Ionicons
+                name="locate"
+                size={20}
+                color="#3b82f6"
+              />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.immersiveVoiceBtn}
               onPress={() => setIsVoiceEnabled(!isVoiceEnabled)}
               testID="immersive-voice-toggle"
             >
