@@ -429,10 +429,7 @@ var _smoothedZoom = 16.5;  // lerp-smoothed zoom target
 // GPS reading at ~60fps so the puck glides through turns instead of snapping.
 var _puckCurrentBearing = null;  // currently rendered angle (deg, 0-360)
 var _puckTargetBearing = null;   // latest GPS heading
-var _puckLocation = null;        // latest GPS fix {longitude, latitude}  -- TARGET
-var _puckRenderedLng = null;     // currently rendered lng (lerped toward _puckLocation)
-var _puckRenderedLat = null;     // currently rendered lat (lerped toward _puckLocation)
-var _puckLastFixAt = 0;          // ms timestamp of latest GPS fix (used to clamp ease)
+var _puckLocation = null;        // latest {longitude, latitude}
 var _puckAnimRAF = null;         // rAF handle
 var _drawCoords=[];
 var _drawActive=false;
@@ -1651,88 +1648,47 @@ function processMessage(d) {
         // Driver lost — clear the source
         map.getSource('driver').setData({type:'FeatureCollection',features:[]});
         _puckLocation = null;
-        _puckRenderedLng = null;
-        _puckRenderedLat = null;
         if (_puckAnimRAF) { cancelAnimationFrame(_puckAnimRAF); _puckAnimRAF = null; }
         return;
       }
       _puckLocation = d.location;
-      _puckLastFixAt = Date.now();
-      // First fix → snap rendered position too; subsequent fixes → lerp.
-      if (_puckRenderedLng == null) {
-        _puckRenderedLng = d.location.longitude;
-        _puckRenderedLat = d.location.latitude;
-      }
       var newBearing = d.location.heading || 0;
+      // First fix → snap; subsequent fixes → smooth lerp
       if (_puckCurrentBearing == null) _puckCurrentBearing = newBearing;
       _puckTargetBearing = newBearing;
 
       var writeDriverFeature = function() {
-        if (_puckRenderedLng == null || !map.getSource('driver')) return;
+        if (!_puckLocation || !map.getSource('driver')) return;
         map.getSource('driver').setData({
           type:'FeatureCollection',
           features:[{
             type:'Feature',
-            geometry:{type:'Point', coordinates:[_puckRenderedLng, _puckRenderedLat]},
+            geometry:{type:'Point', coordinates:[_puckLocation.longitude, _puckLocation.latitude]},
             properties:{bearing: _puckCurrentBearing}
           }]
         });
       };
 
       var animateBearing = function() {
-        // ── (1) Position lerp ────────────────────────────────────────────
-        // Glide the rendered position toward the latest GPS fix at ~60 fps
-        // so the puck doesn't jump every 800 ms tick. We tune the lerp rate
-        // to close ~80% of the gap over the expected inter-fix interval
-        // (~800 ms). Capped distance per frame prevents teleporting if the
-        // GPS suddenly snaps a long way (e.g. tunnel exit).
-        if (_puckLocation && _puckRenderedLng != null) {
-          var dLng = _puckLocation.longitude - _puckRenderedLng;
-          var dLat = _puckLocation.latitude  - _puckRenderedLat;
-          // ~5% of remaining distance per frame → ~80% closed in ~32 frames
-          // (~530 ms @60fps), enough to fully catch up before the next fix.
-          var POS_LERP = 0.05;
-          _puckRenderedLng += dLng * POS_LERP;
-          _puckRenderedLat += dLat * POS_LERP;
-          // Snap when close enough to avoid endless asymptote.
-          if (Math.abs(dLng) < 1e-7 && Math.abs(dLat) < 1e-7) {
-            _puckRenderedLng = _puckLocation.longitude;
-            _puckRenderedLat = _puckLocation.latitude;
-          }
-        }
-
-        // ── (2) Bearing lerp ─────────────────────────────────────────────
+        // Shortest-arc difference [-180, 180]
         var diff = _puckTargetBearing - _puckCurrentBearing;
         while (diff > 180) diff -= 360;
         while (diff < -180) diff += 360;
-        // 18% of remaining angle per frame
-        _puckCurrentBearing = ((_puckCurrentBearing + diff * 0.18) % 360 + 360) % 360;
-
-        writeDriverFeature();
-
-        // Keep the route-ghost split in sync with the rendered (not raw) position
-        if (_drivingMode && _fullRouteCoords.length >= 2 && _puckRenderedLng != null) {
-          updateRouteGhost(_puckRenderedLng, _puckRenderedLat);
-        }
-
-        // Stop the loop once both lerps have settled AND the puck has had
-        // a chance to fully reach the latest fix (avoids tearing down rAF
-        // mid-glide on a transient match).
-        var bearingSettled = Math.abs(diff) < 0.5;
-        var posSettled =
-          _puckLocation == null ||
-          (Math.abs(_puckLocation.longitude - _puckRenderedLng) < 1e-7 &&
-           Math.abs(_puckLocation.latitude  - _puckRenderedLat) < 1e-7);
-        if (bearingSettled && posSettled) {
+        if (Math.abs(diff) < 0.5) {
+          _puckCurrentBearing = _puckTargetBearing;
+          writeDriverFeature();
           _puckAnimRAF = null;
           return;
         }
+        // 18% of remaining angle per frame → ~90% closed in ~13 frames (~220ms @60fps)
+        _puckCurrentBearing = ((_puckCurrentBearing + diff * 0.18) % 360 + 360) % 360;
+        writeDriverFeature();
         _puckAnimRAF = requestAnimationFrame(animateBearing);
       };
 
       // Always write the latest position immediately so the puck doesn't lag its GPS fix
       writeDriverFeature();
-      // Kick off the bearing+position animation if not already running
+      // Kick off the bearing animation if not already running
       if (!_puckAnimRAF) _puckAnimRAF = requestAnimationFrame(animateBearing);
 
       // Progress the gray/blue split polyline along the route as the driver
