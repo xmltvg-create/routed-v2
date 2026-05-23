@@ -1774,7 +1774,7 @@ export default function RouteScreen() {
       locationSubscription.current = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.BestForNavigation,
-          timeInterval: 800,
+          timeInterval: 400,
           distanceInterval: 0, // fire on time interval even when stationary
         },
         (location) => {
