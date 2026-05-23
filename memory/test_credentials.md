@@ -79,6 +79,15 @@ sudo supervisorctl restart backend
 
 ## Owner / Admin
 - `xmltvg@gmail.com` (primary driver account, in `STRIPE_ADMIN_USER_IDS` for Pro bypass)
+- `user_id`: `user_2a7d88cbb419`
+- DB row also has `name="Adhamh McDonald"`
+
+## Backend Infrastructure (post 2026-05-22 migration)
+- **Production backend**: `https://routed.fly.dev` (Fly.io Sydney, always-on)
+- **Atlas cluster**: M0 free, `ap-southeast-2 (Sydney)`, host `cluster0.ma8c8y1.mongodb.net`
+- **Atlas DB user**: `routed-api`  (password rotated 2026-05-23 — current value lives only in Fly secret `MONGO_URL`; rotate again before sharing externally)
+- **Live DB name**: `routed` (NOT `test_database` — that's the abandoned old name still showing in /app/backend/.env for local dev only)
+- **Local dev** still uses `mongodb://localhost:27017` / DB `test_database` per `/app/backend/.env` (don't change — protected var)
 
 ## Paste-Ready Play Console "App access" Form
 

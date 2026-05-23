@@ -2104,3 +2104,59 @@ User feedback: "The route optimizer is producing zig-zag patterns on large route
 - **Verification**: `tsc --noEmit` passes for the camera-fix region. Only one pre-existing unrelated TS error (`onLassoComplete` signature, line 2363) — not introduced by this fix.
 - **Pending user verification**: requires fresh EAS APK build (`eas build --profile production-apk`) — OTA won't reach the existing Emergent preview install. After install, drive the route → camera should now smoothly follow with no border flashes.
 
+
+## Session 2026-05-22/23 — Fly.io migration + the great camera follow saga
+
+### What landed (verified end-to-end by the user)
+- **Backend on Fly.io Sydney** (`https://routed.fly.dev`) with `min_machines_running=1`, `auto_stop_machines=off` → **502 sleep errors permanently gone**. App name: `routed`. Region: `syd`. Dockerfile.flyio + fly.toml + deploy-fly.sh + FLY_DEPLOY.md all in `/app/backend/`.
+- **MongoDB Atlas Sydney (M0 free)** — `routed` database. All 613 documents migrated from local pod Mongo (`test_database`): 196 stops, 18 users incl. the admin (`user_2a7d88cbb419` / xmltvg@gmail.com / Adhamh McDonald), 115 user_sessions, 57 route_history, 12 ml_building_side_models, 1 ml_service_time_model, 5 import_jobs, 1 van_layout. Excluded geocode_cache (rebuilds).
+- **Atlas password rotated** mid-session to `PDk2s9NhIzWXfpko`; old password dead.
+- **EAS profiles in `eas.json`** — `production` (AAB) and `production-apk` both point `EXPO_PUBLIC_BACKEND_URL` at `https://routed.fly.dev`. `development` + `preview` still on Emergent preview as fallback.
+- **APK v89** (`production-apk` profile, build `e2265f67-bc0e-4d84-8970-67f32f60b275`) installed on user's phone with Fly URL baked in. Direct download: <https://expo.dev/artifacts/eas/tVGUwRf6Nd2AZiAVHYKnWM.apk>
+- **OTA channel `production`** repeatedly published over the day. The series that finally worked is summarised below.
+
+### THE big bug — camera not following driver (4th+ recurrence, root cause SOLVED 2026-05-23)
+Three independent bugs were stacked on top of each other, which is why every fix attempt looked like it failed:
+
+1. **`isMapReady` was being reset on every viewMode change.** `app/(tabs)/index.tsx` had a `useEffect(() => setIsMapReady(false), [viewMode])` block whose comment claimed the WebView re-renders the map HTML when viewMode changes. It does NOT — `DeliveryMap` persists across the tab's lifetime, so `onMapReady` only fires ONCE (initial style load). Every navigation entry therefore left `isMapReady` stuck at `false`, which silently disabled the `useNavigationCamera` hook (`enabled: mapReady && isNavigating && viewMode === 'navigating'`) AND made `handleShowRouteOverview` alert "Map not ready". **This was the real bug** behind the entire saga. Removed the reset effect; left a long comment in its place so no one re-adds it.
+2. **`DeliveryMap.native.tsx` line ~1710** gated `drivingCamera` on `!map || !map.loaded()`. `map.loaded()` returns false whenever any source/tile is loading (constant during driving). Now gates only on `!map`. Also: `_easeInFlight` is now released on the canonical `map.once('moveend', …)` event (with a 600 ms watchdog as a belt-and-braces). The previous setTimeout(420 ms) approach could deadlock if JS suspended once. Added pixel-space look-ahead offset (40–180 px along heading) so the driver puck sits in the bottom-third with road ahead visible.
+3. **`startLiveTracking` had no compass subscription.** With the legacy single-writer path, heading came purely from `coords.heading`, which is invalid (-1 / null) when stationary or below 1.4 m/s. Map locked to bearing=0 (north) when standing still. Added `Location.watchHeadingAsync` that writes to `compassHeadingRef` only (no setState — magnetometer fires at ~10 Hz, would re-render storm). GPS course takes over once `hasGpsCourseRef = true` (driver moving > 1.4 m/s). Cleanup in `stopLiveTracking`.
+
+Also flipped `<DeliveryMap highFreqCameraActive={isNavigating && viewMode === 'navigating'} />` back on (was forced `false` during the previous fork's debug session), and removed a now-redundant JS-side heading low-pass filter so the single source of bearing smoothing is the WebView's 60fps `animateBearing` rAF lerp.
+
+### The OTA pipeline meta-bug — wrong backend URL kept baking into bundles
+This caused half a day of "still wrong account / stops missing" confusion:
+1. `eas.json` profiles pointed at `floating-map-ui.emergent.host` (the old Emergent-hosted backend) until I fixed them to `routed.fly.dev`.
+2. `frontend/.env` was protected by Emergent's `PROTECTED_VARIABLES` mechanism and kept reverting `EXPO_PUBLIC_BACKEND_URL` to `fast-route-api.preview.emergentagent.com`. Workaround: `sudo supervisorctl stop expo && sed -i ... && eas update && supervisorctl start expo`.
+3. **EAS server-side environment** (managed via `eas env:list/create --environment production`) had its OWN `EXPO_PUBLIC_BACKEND_URL` set to `floating-map-ui.emergent.host`. **This was the silent winner** — any `eas update --environment production` used the server value, overriding the .env. Fixed via `eas env:create production --name EXPO_PUBLIC_BACKEND_URL --value https://routed.fly.dev --force`.
+Result: every login pre-fix landed the user on the preview/hosted backend's separate Mongo with no admin status and (effectively) no stops, looking exactly like "logged into the wrong account." After fixing all three, fresh sessions hit Fly + Atlas and the admin user sees 196 stops as expected.
+
+### Other fixes shipped this session
+- **`AsyncStorage`-stale-token auto-recovery** in `Profile` and `AuthContext` (probes `/api/stops`; on 401, clears token + bounces to login). Helped during the OTA-URL-mismatch chaos.
+- **Google OAuth `preferEphemeralSession: true`** in `app/index.tsx` so the Google account picker re-appears every sign-in (no more silent reuse of cached account).
+- **194 stops re-tagged + reverted**: when DB_NAME was briefly wrong on Fly, user re-imported 194 stops under throwaway `user_33dcfe14df90`. I migrated + re-tagged them to the admin account at user's request, then reverted ("Remove the stops you in ust addded") — final count back to historical 196.
+- **Route-overview button → toggle** + new **visible `locate` icon** in `NavigationPanel` immersive header (next to volume toggle). Tap = wide route view; tap again = recenter on driver. testID `immersive-route-overview-toggle`.
+
+### Files touched this session
+- `/app/backend/Dockerfile.flyio` — overwritten with single-stage build + emergentintegrations CloudFront index + lkh `--no-deps` workaround for click conflict
+- `/app/backend/fly.toml` (new)
+- `/app/backend/.dockerignore` (new)
+- `/app/backend/deploy-fly.sh` (new, chmod +x)
+- `/app/backend/FLY_DEPLOY.md` (new)
+- `/app/backend/requirements.txt` — bumped `click==6.7 → click==8.4.0` to unblock black
+- `/app/frontend/eas.json` — production + production-apk → `routed.fly.dev`
+- `/app/frontend/.env` — `EXPO_PUBLIC_BACKEND_URL=https://routed.fly.dev` (note: gets reverted on supervisor restart; stop expo before any `eas update`)
+- `/app/frontend/app/(tabs)/index.tsx` — removed broken `setIsMapReady(false)` viewMode reset; added compass subscription with `headingSubscription`/`compassHeadingRef`/`hasGpsCourseRef`; bumped GPS timeInterval 800→400; replaced redundant heading low-pass with raw value passthrough; flipped `highFreqCameraActive` back to `isNavigating && viewMode === 'navigating'`; made `handleShowRouteOverview` a toggle via `inOverviewModeRef`
+- `/app/frontend/src/components/DeliveryMap.native.tsx` — `drivingCamera` no longer gates on `map.loaded()`; `_easeInFlight` released via `moveend` event + 600 ms watchdog; pixel-space look-ahead offset; removed earlier ill-fated position-lerp attempt (made puck visibly trail camera); all debug border/outline code stripped
+- `/app/frontend/src/components/route/NavigationPanel.tsx` — added visible 🎯 `locate` icon button calling `onShowRouteOverview`
+- `/app/frontend/src/context/AuthContext.tsx` — stale-token probe (reverted), `preferEphemeralSession` (separate edit lives in app/index.tsx)
+- `/app/frontend/app/(tabs)/profile.tsx` — stale-token recovery on Profile mount + AsyncStorage/BACKEND_URL imports
+
+### Known followups for next session
+- `git rev-parse` runs inside Fly container but no `.git` is COPYed in → `/api/healthz/version` reports `sha: "unknown"`. Cosmetic; fix by adding `.git` to build context or passing `GIT_SHA` build arg.
+- `frontend/.env`'s `EXPO_PUBLIC_BACKEND_URL` gets reverted by Emergent's PROTECTED_VARIABLES on every supervisor restart. The EAS server-side env var is now the source of truth, but anyone running `eas update` from this pod must `sudo supervisorctl stop expo`, fix .env, run update, restart expo. Document this.
+- `test_database` on Atlas now contains only stale junk (the 194 stops + a throwaway user). User opted to keep it for a week as safety net; should be dropped around 2026-05-29.
+- Old wrong-DB user `user_33dcfe14df90` was confirmed NOT in `routed` DB and not in any active session.
+- v90, v91 etc. APK builds never finished — user hit Expo free-tier monthly Android quota. Resets June 1, or upgrade for $19/mo.
+- P1 backlog untouched: time-window warnings on pins; bounced re-attempt queue.
+
