@@ -2239,6 +2239,10 @@ export default function RouteScreen() {
     }
   };
 
+  // Tracks whether the user has actively zoomed out to a route overview.
+  // Tap Route Overview → wide view; tap again → recenter on driver.
+  const inOverviewModeRef = useRef(false);
+
   const handleShowRouteOverview = useCallback(() => {
     if (viewMode !== 'navigating') return;
     if (!mapRef.current || !isMapReady) {
@@ -2246,23 +2250,42 @@ export default function RouteScreen() {
       return;
     }
 
+    // Toggle: if we're already in overview, snap back to follow-driver.
+    if (inOverviewModeRef.current && currentLocationRef.current) {
+      inOverviewModeRef.current = false;
+      const loc = currentLocationRef.current;
+      // Fire one immediate drivingCamera message so the WebView re-issues
+      // an easeTo to the driver puck with full nav zoom + heading. The
+      // 250 ms hook will continue feeding updates afterwards.
+      mapRef.current.sendMessage({
+        type: 'drivingCamera',
+        lng: loc.longitude,
+        lat: loc.latitude,
+        bearing: loc.heading || 0,
+        speedMps: (currentSpeed || 0) / 3.6,
+      });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      return;
+    }
+
     // Compute bounds from all available coordinates
     const allStops = navigationData?.stops || stops;
     const lngs = allStops.filter((s: any) => s.longitude).map((s: any) => s.longitude);
     const lats = allStops.filter((s: any) => s.latitude).map((s: any) => s.latitude);
-    
+
     if (lngs.length < 2) {
       Alert.alert('No route available', 'Start navigation to view a route overview.');
       return;
     }
 
+    inOverviewModeRef.current = true;
     mapRef.current.fitBounds(
       [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
       80,
     );
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [viewMode, isMapReady, navigationData, stops]);
+  }, [viewMode, isMapReady, navigationData, stops, currentSpeed]);
 
   const moveToNextStop = async () => {
     if (currentLegIndex < (navigationData?.legs.length || 0) - 1) {

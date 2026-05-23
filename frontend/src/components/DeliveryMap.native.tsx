@@ -1700,25 +1700,57 @@ function processMessage(d) {
 
     // ── (1) Navigation Camera POV + (2) Dynamic Bearing ──────────────────
     if (d.type === 'drivingCamera') {
-      if (_easeInFlight) return;
       // NOTE: do NOT gate on map.loaded() — it flickers false while any tile/
       // source is loading (constant during driving), which would drop every
       // camera tick. easeTo is safe to call before all sources finish loading.
       if (!map) return;
+      // If a previous easeTo is still in flight, just skip — the next tick
+      // (250 ms later) will catch up. We reset the flag via the moveend event
+      // below rather than a setTimeout so that a suspended JS thread can never
+      // permanently lock the camera (root cause of "camera not following").
+      if (_easeInFlight) return;
 
       var rawLng = d.center ? d.center[0] : d.lng;
       var rawLat = d.center ? d.center[1] : d.lat;
       if (rawLng == null || rawLat == null) return;
 
       var bearing = d.bearing || 0;
-      var finalCenter = [rawLng, rawLat];
       var spd = d.speedMps || 0;
+
+      // ── Pixel-space look-ahead offset ─────────────────────────────────
+      // Push the camera centre lookAhead pixels along the heading so the
+      // driver puck sits in the bottom-third of the screen, leaving the
+      // road ahead visible (Google-Maps-style). Computed in screen space
+      // and then unprojected so it adapts to current zoom + pitch.
+      var finalCenter = [rawLng, rawLat];
+      try {
+        var origin = map.project([rawLng, rawLat]);
+        // 0 px when stopped, up to 180 px at 25 m/s — more look-ahead at speed
+        var lookAhead = Math.min(180, Math.max(40, spd * 7));
+        var rad = bearing * Math.PI / 180;
+        // Screen y grows downward; we want the camera centre shifted UP-along
+        // bearing relative to the driver, so subtract a vector in bearing dir.
+        var px = origin.x + Math.sin(rad) * lookAhead;
+        var py = origin.y - Math.cos(rad) * lookAhead;
+        var shifted = map.unproject([px, py]);
+        finalCenter = [shifted.lng, shifted.lat];
+      } catch (e) {
+        // project/unproject can throw before the first style load — fall
+        // back to raw coords so the camera still tracks the driver.
+        finalCenter = [rawLng, rawLat];
+      }
+
       var rawZoom = 18.5 - (spd / 25) * 4.5;
       var targetZoom = Math.max(14, Math.min(18.5, rawZoom));
       if (typeof _smoothedZoom === 'undefined') _smoothedZoom = 16.5;
       _smoothedZoom = _smoothedZoom * 0.7 + targetZoom * 0.3;
 
       _easeInFlight = true;
+      // Listen ONCE for the next moveend — that's the canonical "easeTo
+      // finished" signal. Belt-and-braces: also clear via a 600 ms watchdog
+      // in case moveend is somehow suppressed (e.g. easeTo was a no-op).
+      map.once('moveend', function() { _easeInFlight = false; });
+      setTimeout(function() { _easeInFlight = false; }, 600);
 
       map.easeTo({
         center: finalCenter,
@@ -1727,8 +1759,6 @@ function processMessage(d) {
         zoom: _smoothedZoom,
         duration: 400
       });
-
-      setTimeout(function() { _easeInFlight = false; }, 420);
     }
 
     // Enter/exit driving mode — toggles 3D buildings + route pulse
