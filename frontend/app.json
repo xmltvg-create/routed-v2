@@ -34,7 +34,7 @@
         "FOREGROUND_SERVICE_LOCATION"
       ],
       "package": "com.routedopt.app",
-      "versionCode": 90,
+      "versionCode": 91,
       "runtimeVersion": {
         "policy": "appVersion"
       }
