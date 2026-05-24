@@ -95,13 +95,13 @@ export function useNavigationCamera(
         (location) => {
           if (!alive) return;
 
-          // Throttle to 4 fps (250 ms). Higher rates flooded the WebView
-          // bridge with injectJavaScript calls + per-tick easeTo restarts,
-          // which on tablet WebViews actually made the camera feel MORE
-          // laggy (CPU-bound, not GPS-bound). 4 fps is enough — the camera's
-          // 250 ms linear easeTo blends each tick into a continuous motion.
+          // Throttle to ~7 fps (140 ms). Now that the WebView is no longer
+          // CPU-bound (pitch=45, no 3D extrusions), we can safely push more
+          // GPS updates through the bridge to make turn rotation feel
+          // near-instant. easeTo duration matches at 130 ms so each
+          // animation completes before the next tick.
           const now = Date.now();
-          if (now - lastFireRef.current < 250) return;
+          if (now - lastFireRef.current < 140) return;
           lastFireRef.current = now;
 
           const { latitude, longitude, speed, heading: gpsHeading } = location.coords;
