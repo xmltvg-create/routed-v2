@@ -1701,8 +1701,10 @@ function processMessage(d) {
           _puckAnimRAF = null;
           return;
         }
-        // 18% of remaining angle per frame → ~90% closed in ~13 frames (~220ms @60fps)
-        _puckCurrentBearing = ((_puckCurrentBearing + diff * 0.18) % 360 + 360) % 360;
+        // 32% of remaining angle per frame → ~90% closed in ~7 frames (~120ms @60fps).
+        // Snappier than the previous 18% (which felt laggy on turns) while still
+        // smooth enough to avoid a "snapping" feel on small heading deltas.
+        _puckCurrentBearing = ((_puckCurrentBearing + diff * 0.32) % 360 + 360) % 360;
         writeDriverFeature();
         _puckAnimRAF = requestAnimationFrame(animateBearing);
       };
