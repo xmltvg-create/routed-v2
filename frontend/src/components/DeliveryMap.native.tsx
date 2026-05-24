@@ -1813,10 +1813,9 @@ function processMessage(d) {
         // rotation pivots around this padded centre — the puck stays fixed
         // on screen as the bearing rotates instead of swinging on a radius.
         padding: { top: padTop, bottom: 0, left: 0, right: 0 },
-        // 130 ms — matches the new 140 ms GPS throttle. Each rotation
-        // animation completes before the next tick arrives, so the camera
-        // catches up to current bearing on every tick → near-instant turns.
-        duration: 130,
+        // 90 ms — matches the new 100 ms GPS throttle. Camera catches up
+        // on every single GPS fix → effectively zero perceived rotation lag.
+        duration: 90,
         // Linear easing so back-to-back easeTo calls blend into a continuous
         // motion instead of each one ease-in/out'ing and creating tiny pauses.
         easing: function(t) { return t; }

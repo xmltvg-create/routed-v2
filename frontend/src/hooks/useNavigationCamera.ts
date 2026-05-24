@@ -89,19 +89,17 @@ export function useNavigationCamera(
       posSubRef.current = await Location.watchPositionAsync(
         {
           accuracy:         Location.Accuracy.BestForNavigation,
-          timeInterval:     250,
-          distanceInterval: 1,    // fire even on very small moves
+          timeInterval:     100,  // Push Android GPS to deliver fixes as fast as possible
+          distanceInterval: 0,    // fire even on very small moves
         },
         (location) => {
           if (!alive) return;
 
-          // Throttle to ~7 fps (140 ms). Now that the WebView is no longer
-          // CPU-bound (pitch=45, no 3D extrusions), we can safely push more
-          // GPS updates through the bridge to make turn rotation feel
-          // near-instant. easeTo duration matches at 130 ms so each
-          // animation completes before the next tick.
+          // Throttle to ~10 fps (100 ms) — matches the new Android tick rate.
+          // easeTo duration is 90 ms so each rotation completes before the
+          // next tick → near-zero perceived camera lag on turns.
           const now = Date.now();
-          if (now - lastFireRef.current < 140) return;
+          if (now - lastFireRef.current < 100) return;
           lastFireRef.current = now;
 
           const { latitude, longitude, speed, heading: gpsHeading } = location.coords;
