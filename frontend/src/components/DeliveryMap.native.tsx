@@ -1764,37 +1764,27 @@ function processMessage(d) {
       // driver puck sits in the bottom-third of the screen, leaving the
       // road ahead visible (Google-Maps-style). Computed in screen space
       // and then unprojected so it adapts to current zoom + pitch.
+      // Compute a "look-ahead" padding so the puck (which we pass as the
+      // raw GPS center) sits in the lower portion of the screen, with the
+      // road ahead occupying the top.
+      //
+      // Why padding instead of a shifted center?
+      // Previously we computed an offset world-point ahead of the puck and
+      // passed that as easeTo({center}). The camera's bearing then rotated
+      // around THAT shifted point — so the puck, being offset from the
+      // pivot by lookAhead pixels, swung around the camera center on every
+      // turn. With padding.top, the look-at point stays AT the puck and
+      // padding only shifts where on screen the look-at is rendered → the
+      // puck stays glued in place and rotation pivots around it.
+      var canvas2 = map.getCanvas();
+      var screenH2 = canvas2 ? canvas2.clientHeight : 800;
+      // 50% of screen height of TOP padding ≈ puck at ~75% from top.
+      // Up to 64% at speed for more road visibility.
+      var minPadTop = screenH2 * 0.50;
+      var maxPadTop = screenH2 * 0.64;
+      var sf = Math.min(1, spd / 25);
+      var padTop = minPadTop + (maxPadTop - minPadTop) * sf;
       var finalCenter = [rawLng, rawLat];
-      try {
-        var origin = map.project([rawLng, rawLat]);
-        // Push the camera ahead so the puck sits in the LOWER THIRD of the
-        // screen (Google-Maps-style). Use a fraction of SCREEN HEIGHT
-        // rather than fixed pixels, otherwise the offset feels tiny on
-        // tablets / large screens where fixed-px offsets don't scale.
-        // 25% of screen height when stopped → puck sits at ~75% from top.
-        // Up to 32% at speed (≥25 m/s) for more road-ahead visibility.
-        var canvas = map.getCanvas();
-        var screenH = canvas ? canvas.clientHeight : 800;
-        var minOffset = screenH * 0.25;
-        var maxOffset = screenH * 0.32;
-        var speedFraction = Math.min(1, spd / 25);
-        var lookAhead = minOffset + (maxOffset - minOffset) * speedFraction;
-        // map.project already accounts for the map's bearing rotation, so
-        // "up the screen" (smaller y) is ALWAYS the direction of travel
-        // regardless of the world-bearing. The previous version applied
-        // sin/cos(bearing) on top of an already-rotated screen coord — a
-        // double-rotation bug that worked accidentally at bearing=0 and
-        // pushed the camera BEHIND the driver at bearing=180. Just shift
-        // straight up on screen.
-        var px = origin.x;
-        var py = origin.y - lookAhead;
-        var shifted = map.unproject([px, py]);
-        finalCenter = [shifted.lng, shifted.lat];
-      } catch (e) {
-        // project/unproject can throw before the first style load — fall
-        // back to raw coords so the camera still tracks the driver.
-        finalCenter = [rawLng, rawLat];
-      }
 
       var rawZoom = 18.5 - (spd / 25) * 4.5;
       var targetZoom = Math.max(14, Math.min(18.5, rawZoom));
@@ -1813,6 +1803,11 @@ function processMessage(d) {
         bearing: bearing,
         pitch: 60,
         zoom: _smoothedZoom,
+        // Top padding pushes the visual centre DOWN, so the puck (centre
+        // lng/lat) is rendered in the lower portion of the screen. Crucially,
+        // rotation pivots around this padded centre — the puck stays fixed
+        // on screen as the bearing rotates instead of swinging on a radius.
+        padding: { top: padTop, bottom: 0, left: 0, right: 0 },
         duration: 250,
         // Linear easing so back-to-back easeTo calls blend into a continuous
         // motion instead of each one ease-in/out'ing and creating tiny pauses.
