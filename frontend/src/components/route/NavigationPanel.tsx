@@ -195,15 +195,28 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
         const committed = fastFlick || farDrag;
         if (committed && g.dx < 0 && canPreviewNext && onPreviewNextStop) {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          // Animate card out to the left, then reset (new card snaps in at 0).
+          // Animate card out to the left, swap content while off-screen,
+          // then slide in from the right. The previous version snapped
+          // swipeX to 0 BEFORE swapping content, which caused the panel to
+          // momentarily render the OLD stop's content at x=0 + opacity 1
+          // for one frame (visible as a "flick" — much more obvious with
+          // the now semi-transparent panel that lets the map show through).
           Animated.timing(swipeX, { toValue: -500, duration: 160, useNativeDriver: true })
-            .start(() => { swipeX.setValue(0); onPreviewNextStop(); });
+            .start(() => {
+              onPreviewNextStop();          // 1) swap content while hidden
+              swipeX.setValue(500);          // 2) place off-screen RIGHT
+              Animated.timing(swipeX, { toValue: 0, duration: 160, useNativeDriver: true }).start();
+            });
           return;
         }
         if (committed && g.dx > 0 && canPreviewPrev && onPreviewPrevStop) {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           Animated.timing(swipeX, { toValue: 500, duration: 160, useNativeDriver: true })
-            .start(() => { swipeX.setValue(0); onPreviewPrevStop(); });
+            .start(() => {
+              onPreviewPrevStop();           // swap content while hidden
+              swipeX.setValue(-500);          // place off-screen LEFT
+              Animated.timing(swipeX, { toValue: 0, duration: 160, useNativeDriver: true }).start();
+            });
           return;
         }
         if (committed) {
