@@ -1779,11 +1779,15 @@ function processMessage(d) {
         var maxOffset = screenH * 0.32;
         var speedFraction = Math.min(1, spd / 25);
         var lookAhead = minOffset + (maxOffset - minOffset) * speedFraction;
-        var rad = bearing * Math.PI / 180;
-        // Screen y grows downward; we want the camera centre shifted UP-along
-        // bearing relative to the driver, so subtract a vector in bearing dir.
-        var px = origin.x + Math.sin(rad) * lookAhead;
-        var py = origin.y - Math.cos(rad) * lookAhead;
+        // map.project already accounts for the map's bearing rotation, so
+        // "up the screen" (smaller y) is ALWAYS the direction of travel
+        // regardless of the world-bearing. The previous version applied
+        // sin/cos(bearing) on top of an already-rotated screen coord — a
+        // double-rotation bug that worked accidentally at bearing=0 and
+        // pushed the camera BEHIND the driver at bearing=180. Just shift
+        // straight up on screen.
+        var px = origin.x;
+        var py = origin.y - lookAhead;
         var shifted = map.unproject([px, py]);
         finalCenter = [shifted.lng, shifted.lat];
       } catch (e) {
