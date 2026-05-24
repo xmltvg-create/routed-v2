@@ -1768,10 +1768,17 @@ function processMessage(d) {
       try {
         var origin = map.project([rawLng, rawLat]);
         // Push the camera ahead so the puck sits in the LOWER THIRD of the
-        // screen (Google-Maps-style). 120 px floor at standstill, up to
-        // 220 px at speed. Previously 40 px floor put the puck almost on
-        // the screen centre — user wants it lower.
-        var lookAhead = Math.min(220, Math.max(120, spd * 8));
+        // screen (Google-Maps-style). Use a fraction of SCREEN HEIGHT
+        // rather than fixed pixels, otherwise the offset feels tiny on
+        // tablets / large screens where fixed-px offsets don't scale.
+        // 25% of screen height when stopped → puck sits at ~75% from top.
+        // Up to 32% at speed (≥25 m/s) for more road-ahead visibility.
+        var canvas = map.getCanvas();
+        var screenH = canvas ? canvas.clientHeight : 800;
+        var minOffset = screenH * 0.25;
+        var maxOffset = screenH * 0.32;
+        var speedFraction = Math.min(1, spd / 25);
+        var lookAhead = minOffset + (maxOffset - minOffset) * speedFraction;
         var rad = bearing * Math.PI / 180;
         // Screen y grows downward; we want the camera centre shifted UP-along
         // bearing relative to the driver, so subtract a vector in bearing dir.
