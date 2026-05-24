@@ -1727,11 +1727,10 @@ function processMessage(d) {
       // source is loading (constant during driving), which would drop every
       // camera tick. easeTo is safe to call before all sources finish loading.
       if (!map) return;
-      // If a previous easeTo is still in flight, just skip — the next tick
-      // (250 ms later) will catch up. We reset the flag via the moveend event
-      // below rather than a setTimeout so that a suspended JS thread can never
-      // permanently lock the camera (root cause of "camera not following").
-      if (_easeInFlight) return;
+      // (Previously an _easeInFlight lock here dropped every tick that
+      //  arrived while a 400ms easeTo was animating — see the easeTo call
+      //  below for the rewrite. Lock removed; MapLibre handles re-entrant
+      //  easeTo gracefully on its own.)
       // Pause auto-camera only when user is actively manipulating the map
       // (real drag/pinch/rotate, not stray taps). _userInteracting is set
       // by MapLibre's dragstart/pitchstart/rotatestart events below and
@@ -1768,8 +1767,11 @@ function processMessage(d) {
       var finalCenter = [rawLng, rawLat];
       try {
         var origin = map.project([rawLng, rawLat]);
-        // 0 px when stopped, up to 180 px at 25 m/s — more look-ahead at speed
-        var lookAhead = Math.min(180, Math.max(40, spd * 7));
+        // Push the camera ahead so the puck sits in the LOWER THIRD of the
+        // screen (Google-Maps-style). 120 px floor at standstill, up to
+        // 220 px at speed. Previously 40 px floor put the puck almost on
+        // the screen centre — user wants it lower.
+        var lookAhead = Math.min(220, Math.max(120, spd * 8));
         var rad = bearing * Math.PI / 180;
         // Screen y grows downward; we want the camera centre shifted UP-along
         // bearing relative to the driver, so subtract a vector in bearing dir.
@@ -1788,23 +1790,22 @@ function processMessage(d) {
       if (typeof _smoothedZoom === 'undefined') _smoothedZoom = 16.5;
       _smoothedZoom = _smoothedZoom * 0.7 + targetZoom * 0.3;
 
-      _easeInFlight = true;
-      // Listen ONCE for the next moveend — that's the canonical "easeTo
-      // finished" signal. Belt-and-braces: also clear via a 300 ms watchdog
-      // in case moveend is somehow suppressed (e.g. easeTo was a no-op).
-      map.once('moveend', function() { _easeInFlight = false; });
-      setTimeout(function() { _easeInFlight = false; }, 300);
-
+      // Drive every GPS tick straight into easeTo — no in-flight lock.
+      // MapLibre's easeTo gracefully cancels a previous animation and starts
+      // a new one from the current state, so consecutive calls blend
+      // smoothly. The previous _easeInFlight lock was DROPPING entire ticks
+      // whenever the 250ms animation hadn't moveend'd yet (which happens
+      // every tick since GPS and animation are both 250ms) — that was the
+      // root cause of the "rotation feels laggy" complaint.
       map.easeTo({
         center: finalCenter,
         bearing: bearing,
         pitch: 60,
         zoom: _smoothedZoom,
-        // Match the GPS tick rate (~250 ms from useNavigationCamera) so the
-        // camera animation finishes just as the next tick arrives. Previously
-        // this was 400 ms which made the camera rotation visibly trail the
-        // driver's actual heading by up to one full tick on turns.
-        duration: 250
+        duration: 250,
+        // Linear easing so back-to-back easeTo calls blend into a continuous
+        // motion instead of each one ease-in/out'ing and creating tiny pauses.
+        easing: function(t) { return t; }
       });
     }
 
