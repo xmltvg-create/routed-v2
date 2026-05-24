@@ -1701,10 +1701,10 @@ function processMessage(d) {
           _puckAnimRAF = null;
           return;
         }
-        // 32% of remaining angle per frame → ~90% closed in ~7 frames (~120ms @60fps).
-        // Snappier than the previous 18% (which felt laggy on turns) while still
-        // smooth enough to avoid a "snapping" feel on small heading deltas.
-        _puckCurrentBearing = ((_puckCurrentBearing + diff * 0.32) % 360 + 360) % 360;
+        // 50% of remaining angle per frame → ~90% closed in ~4 frames (~70ms @60fps).
+        // The camera now uses raw GPS bearing directly, so the puck needs to
+        // keep up quickly or you'd see the puck arrow visibly lag the road.
+        _puckCurrentBearing = ((_puckCurrentBearing + diff * 0.50) % 360 + 360) % 360;
         writeDriverFeature();
         _puckAnimRAF = requestAnimationFrame(animateBearing);
       };
@@ -1741,15 +1741,15 @@ function processMessage(d) {
       var rawLat = d.center ? d.center[1] : d.lat;
       if (rawLng == null || rawLat == null) return;
 
-      // Use the SMOOTHED puck bearing (lerped over ~220ms at 60fps in
-      // animateBearing) — NOT the raw GPS heading — so the camera's
-      // look-ahead direction rotates in lockstep with the visible puck.
-      // Previously the camera used d.bearing directly while the puck used
-      // _puckCurrentBearing, so they pointed in two different directions
-      // every tick and the puck visibly slid sideways inside the screen.
-      var rawBearing = d.bearing || 0;
-      if (_puckCurrentBearing == null) _puckCurrentBearing = rawBearing;
-      var bearing = _puckCurrentBearing;
+      // Camera uses the RAW GPS bearing — easeTo's own 250ms linear blend
+      // provides all the smoothing needed. Previously the camera read
+      // _puckCurrentBearing (the lerped puck bearing), which is already
+      // 100-200ms behind the latest GPS — combining that with easeTo's
+      // animation produced 350-450ms of effective rotation lag. The puck
+      // marker still uses _puckCurrentBearing for its own visible bearing
+      // so it doesn't snap-rotate; the camera's rotation pivots around the
+      // puck via padding so they look in sync regardless.
+      var bearing = d.bearing || 0;
 
       // Smooth the speed so the look-ahead distance doesn't bounce on every
       // tick. GPS speed is noisy at low speeds and oscillates by 1-3 m/s
@@ -1808,7 +1808,7 @@ function processMessage(d) {
         // rotation pivots around this padded centre — the puck stays fixed
         // on screen as the bearing rotates instead of swinging on a radius.
         padding: { top: padTop, bottom: 0, left: 0, right: 0 },
-        duration: 250,
+        duration: 150,
         // Linear easing so back-to-back easeTo calls blend into a continuous
         // motion instead of each one ease-in/out'ing and creating tiny pauses.
         easing: function(t) { return t; }
