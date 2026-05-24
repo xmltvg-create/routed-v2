@@ -1801,14 +1801,19 @@ function processMessage(d) {
       map.easeTo({
         center: finalCenter,
         bearing: bearing,
-        pitch: 60,
+        // Drop pitch from 60 → 45. Pitch=60 forces MapLibre to render a
+        // huge horizon strip of tiles + extrude every 3D building polygon
+        // up to ~45° of viewport — easily 2-3× the GPU work of pitch=45.
+        // On the tablet WebView this was the dominant cost of "sluggish
+        // map" feel. 45° still feels driving-mode-ish without the cost.
+        pitch: 45,
         zoom: _smoothedZoom,
         // Top padding pushes the visual centre DOWN, so the puck (centre
         // lng/lat) is rendered in the lower portion of the screen. Crucially,
         // rotation pivots around this padded centre — the puck stays fixed
         // on screen as the bearing rotates instead of swinging on a radius.
         padding: { top: padTop, bottom: 0, left: 0, right: 0 },
-        duration: 150,
+        duration: 250,
         // Linear easing so back-to-back easeTo calls blend into a continuous
         // motion instead of each one ease-in/out'ing and creating tiny pauses.
         easing: function(t) { return t; }
@@ -1833,8 +1838,8 @@ function processMessage(d) {
       // Snap puck bearing to whatever the GPS gives us first — avoids a
       // brief sweep from last session's bearing on the first driving tick.
       _puckCurrentBearing = null;
-      if (map.getLayer('buildings-3d')) map.setLayoutProperty('buildings-3d','visibility','visible'); // OSM worldwide: ALWAYS on — fallback for non-QLD.
-      if (map.getLayer('buildings-self-3d')) map.setLayoutProperty('buildings-self-3d','visibility','visible'); // QLD cadastre: ALWAYS on — OSM is empty in new estates, so this is the only source.
+      if (map.getLayer('buildings-3d')) map.setLayoutProperty('buildings-3d','visibility','none'); // PERF: disable 3D extrusions while driving — they crush WebView fps on tablets. Re-enable when tile DB is back on Fly.
+      if (map.getLayer('buildings-self-3d')) map.setLayoutProperty('buildings-self-3d','visibility','none'); // PERF: same — disable QLD cadastre extrusions during driving.
       _updateBuildingFade(); // Re-evaluate fade: fade near next-stop only while driving, full opacity otherwise.
       if (map.getLayer('route-pulse')) map.setLayoutProperty('route-pulse','visibility',_drivingMode?'visible':'none');
       // Ghost-split (gray completed + blue upcoming) only in driving mode. Hide the plain

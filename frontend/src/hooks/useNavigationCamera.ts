@@ -95,14 +95,13 @@ export function useNavigationCamera(
         (location) => {
           if (!alive) return;
 
-          // Throttle to ~6.5 fps (150 ms). We removed the WebView-side
-          // _easeInFlight lock so back-to-back ticks now blend smoothly,
-          // and easeTo's own 250 ms duration is shorter than the gap
-          // between any two ticks at this rate — so the camera rotates
-          // continuously rather than stair-stepping every 220 ms (the
-          // previous throttle, which made turns feel laggy).
+          // Throttle to 4 fps (250 ms). Higher rates flooded the WebView
+          // bridge with injectJavaScript calls + per-tick easeTo restarts,
+          // which on tablet WebViews actually made the camera feel MORE
+          // laggy (CPU-bound, not GPS-bound). 4 fps is enough — the camera's
+          // 250 ms linear easeTo blends each tick into a continuous motion.
           const now = Date.now();
-          if (now - lastFireRef.current < 150) return;
+          if (now - lastFireRef.current < 250) return;
           lastFireRef.current = now;
 
           const { latitude, longitude, speed, heading: gpsHeading } = location.coords;
