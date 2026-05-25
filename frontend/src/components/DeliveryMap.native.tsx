@@ -1727,10 +1727,12 @@ function processMessage(d) {
       // source is loading (constant during driving), which would drop every
       // camera tick. easeTo is safe to call before all sources finish loading.
       if (!map) return;
-      // (Previously an _easeInFlight lock here dropped every tick that
-      //  arrived while a 400ms easeTo was animating — see the easeTo call
-      //  below for the rewrite. Lock removed; MapLibre handles re-entrant
-      //  easeTo gracefully on its own.)
+      // Re-entrancy guard: if a previous easeTo is still animating, skip
+      // this tick rather than restarting the animation. At 250 ms throttle
+      // + 160 ms duration this only ever drops a tick if the JS thread
+      // hiccuped — the next tick (in 250 ms) will catch up. This keeps
+      // the camera motion settled instead of perpetually mid-animation.
+      if (_easeInFlight) return;
       // Pause auto-camera only when user is actively manipulating the map
       // (real drag/pinch/rotate, not stray taps). _userInteracting is set
       // by MapLibre's dragstart/pitchstart/rotatestart events below and
@@ -1791,13 +1793,14 @@ function processMessage(d) {
       if (typeof _smoothedZoom === 'undefined') _smoothedZoom = 16.5;
       _smoothedZoom = _smoothedZoom * 0.7 + targetZoom * 0.3;
 
-      // Drive every GPS tick straight into easeTo — no in-flight lock.
-      // MapLibre's easeTo gracefully cancels a previous animation and starts
-      // a new one from the current state, so consecutive calls blend
-      // smoothly. The previous _easeInFlight lock was DROPPING entire ticks
-      // whenever the 250ms animation hadn't moveend'd yet (which happens
-      // every tick since GPS and animation are both 250ms) — that was the
-      // root cause of the "rotation feels laggy" complaint.
+      // Mark animation in-flight; clear when MapLibre signals end. The
+      // watchdog timeout is a safety net for the (rare) case where moveend
+      // is suppressed, e.g. an easeTo no-op. Without it a missed event
+      // would permanently lock the camera.
+      _easeInFlight = true;
+      map.once('moveend', function() { _easeInFlight = false; });
+      setTimeout(function() { _easeInFlight = false; }, 400);
+
       map.easeTo({
         center: finalCenter,
         bearing: bearing,
@@ -1813,9 +1816,13 @@ function processMessage(d) {
         // rotation pivots around this padded centre — the puck stays fixed
         // on screen as the bearing rotates instead of swinging on a radius.
         padding: { top: padTop, bottom: 0, left: 0, right: 0 },
-        // 90 ms — matches the new 100 ms GPS throttle. Camera catches up
-        // on every single GPS fix → effectively zero perceived rotation lag.
-        duration: 90,
+        // 160 ms — sits comfortably inside the 250 ms GPS tick so each
+        // rotation animation reaches the target bearing and settles for
+        // ~90 ms before the next tick arrives. 90 ms (the previous value)
+        // was too short — animation kept finishing before the visual
+        // catches up, and combined with re-entrancy at 100 ms tick rate
+        // it felt like jittery half-rotations.
+        duration: 160,
         // Linear easing so back-to-back easeTo calls blend into a continuous
         // motion instead of each one ease-in/out'ing and creating tiny pauses.
         easing: function(t) { return t; }

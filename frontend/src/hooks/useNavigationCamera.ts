@@ -57,7 +57,7 @@ export function useNavigationCamera(
   useEffect(() => { optsRef.current = options; },    [options]);
 
   useEffect(() => {
-    console.log('[NAV_CAM] Hook effect running. enabled:', options.enabled, 'mapReady:', options.mapReady);
+    if (__DEV__) console.log('[NAV_CAM] Hook effect running. enabled:', options.enabled, 'mapReady:', options.mapReady);
     
     if (!options.enabled || !options.mapReady) {
       // Tear down any active subscriptions when disabled
@@ -66,12 +66,12 @@ export function useNavigationCamera(
       posSubRef.current  = null;
       headSubRef.current = null;
       hasGpsCourseRef.current = false;
-      console.log('[NAV_CAM] Hook disabled or map not ready - subscriptions cleared');
+      if (__DEV__) console.log('[NAV_CAM] Hook disabled or map not ready - subscriptions cleared');
       return;
     }
 
     let alive = true;
-    console.log('[NAV_CAM] Starting GPS subscriptions...');
+    if (__DEV__) console.log('[NAV_CAM] Starting GPS subscriptions...');
 
     (async () => {
       // ── 1. Compass heading (fallback ONLY — used until the first valid GPS
@@ -83,23 +83,25 @@ export function useNavigationCamera(
         if (hasGpsCourseRef.current) return;  // GPS is authoritative once moving
         headingRef.current = h.trueHeading ?? h.magHeading ?? 0;
       });
-      console.log('[NAV_CAM] Compass subscription started');
+      if (__DEV__) console.log('[NAV_CAM] Compass subscription started');
 
       // ── 2. High-frequency position for camera smoothness ───────────────
       posSubRef.current = await Location.watchPositionAsync(
         {
           accuracy:         Location.Accuracy.BestForNavigation,
-          timeInterval:     100,  // Push Android GPS to deliver fixes as fast as possible
-          distanceInterval: 0,    // fire even on very small moves
+          timeInterval:     250,  // 4 Hz GPS — high enough for smooth camera, low enough to avoid CPU/battery thrash
+          distanceInterval: 1,    // only fire on ≥1 m moves (drops duplicate fixes while parked)
         },
         (location) => {
           if (!alive) return;
 
-          // Throttle to ~10 fps (100 ms) — matches the new Android tick rate.
-          // easeTo duration is 90 ms so each rotation completes before the
-          // next tick → near-zero perceived camera lag on turns.
+          // Throttle to 4 fps (250 ms). Paired with the 160 ms easeTo
+          // duration below so each rotation animation finishes well before
+          // the next tick arrives — gives the camera a settled moment per
+          // tick instead of being perpetually mid-interpolation (which is
+          // what caused the chronic "laggy turns" feel at 100 ms / 90 ms).
           const now = Date.now();
-          if (now - lastFireRef.current < 100) return;
+          if (now - lastFireRef.current < 250) return;
           lastFireRef.current = now;
 
           const { latitude, longitude, speed, heading: gpsHeading } = location.coords;
@@ -131,7 +133,7 @@ export function useNavigationCamera(
             location: { latitude, longitude, heading: headingRef.current },
           });
           // Send raw GPS — the WebView computes pixel-space look-ahead offset
-          console.log('[NAV_CAM] Sending drivingCamera:', { lng: longitude.toFixed(5), lat: latitude.toFixed(5), bearing: headingRef.current.toFixed(1) });
+          if (__DEV__) console.log('[NAV_CAM] Sending drivingCamera:', { lng: longitude.toFixed(5), lat: latitude.toFixed(5), bearing: headingRef.current.toFixed(1) });
           sendRef.current({
             type:     'drivingCamera',
             lng:      longitude,
