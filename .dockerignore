@@ -1,0 +1,31 @@
+# What to EXCLUDE from the Docker build context uploaded to Railway.
+# Keeps `railway up` fast (otherwise we ship ~1 GB of node_modules + caches).
+
+# Frontend — we don't build the frontend on Railway
+frontend/
+node_modules/
+**/node_modules/
+
+# Local dev caches
+__pycache__/
+*.pyc
+.pytest_cache/
+.cache/
+.npm/
+.expo/
+.yarn/
+*.log
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Misc
+.git/
+.github/
+*.tar.gz
+*.zip
+queensland.osm.pbf
+queensland.osrm*
+osrm-backend/
