@@ -10257,3 +10257,25 @@ async def download_temp_file(token: str):
         raise HTTPException(status_code=404, detail="File not found or link expired")
     return FileResponse(filepath, filename="stops_export.xlsx",
                         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+# ── Temporary sync drop for Coolify migration (REMOVE AFTER USE) ─────
+# Lets a Coolify container curl today's code archive from this Emergent
+# preview backend. Token is random + the file is only ~256 KB. Kill this
+# endpoint and delete the file once Coolify is in sync.
+@app.get("/api/sync-drop/{token}")
+async def sync_drop_download(token: str):
+    import os
+    from fastapi.responses import FileResponse
+    safe_token = "".join(c for c in token if c.isalnum())
+    # Expected token: route2026telepathy
+    if safe_token != "route2026telepathy":
+        raise HTTPException(status_code=404, detail="Not found")
+    filepath = "/tmp/changes.tar.gz"
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="Archive missing")
+    return FileResponse(
+        filepath,
+        filename="route-telepathy-changes.tar.gz",
+        media_type="application/gzip",
+    )
