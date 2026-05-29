@@ -1,3 +1,45 @@
+## 2026-05-29 — Coolify Backend Migration Verified ✅
+
+### Summary
+End-to-end verified the Vultr+Coolify+Cloudflare backend migration that
+was started in the previous session. Backend now fully operational at
+`https://api.getrouted.xyz`.
+
+### Issues Fixed
+1. **Cloudflare → origin timeout** (P0)
+   - Cloudflare A record fix on user side propagated; proxy now reaches
+     origin correctly. SSL/TLS mode confirmed at "Full" (origin uses
+     self-signed Traefik cert).
+   - Verified: `curl https://api.getrouted.xyz/api/health` returns 200.
+
+2. **Buildings DB not loading in container** (P0)
+   - Root cause: `server.py` uses `ROOT_DIR.parent / 'tiles' / 'buildings.db'`.
+     In dev (`/app/backend/server.py`) this resolves to `/app/tiles/buildings.db`,
+     but in the container (`/app/server.py`) it resolves to `/tiles/buildings.db`.
+     The Dockerfile was copying to `/app/tiles/buildings.db` — the wrong path.
+   - Fix: `Dockerfile` now copies to `/tiles/buildings.db`.
+   - Additional defensive fix in `backend/server.py`: `_resolve_tile_db_path()`
+     checks both layouts before falling back.
+   - Verified post-deploy: `/api/tiles/buildings/metadata` returns
+     `{"name":"PathPilot QLD Buildings","total_buildings":"564624",...}`.
+
+3. **Save-to-GitHub push rejections (recurring)**
+   - Both 403 (auth) and "non-fast-forward" (divergent histories) hit again.
+   - Workaround used: user edited `Dockerfile` directly on GitHub.com and
+     triggered a Coolify redeploy. This unblocked the deployment.
+   - Underlying push divergence still unresolved — recommend platform
+     support follow-up if it blocks the next deploy.
+
+### Pending User Verification
+- Force-close + reopen the app, confirm:
+  - Login flow
+  - Route optimization end-to-end
+  - 3D buildings render on map at zoom ≥13
+  - Telepathy Phase A badge appears after route completion
+
+---
+
+
 ## 2026-05-25 — Route Telepathy (Phase A + B) Shipped
 
 ### Summary
