@@ -68,7 +68,11 @@ builds/
 
 # Tile cache / prebuilt SQLite databases — large binaries that must NOT be
 # in version control (they bloat pushes and trip GitHub's file-size limits).
+# EXCEPTION: tiles/buildings.db is a prebuilt dataset the Dockerfile COPYs at
+# build time, so it MUST stay tracked. Only the runtime tile CACHE
+# (qld_cache.db + its WAL/SHM sidecars, regenerated on the fly) is ignored.
 tiles/*.db
+!tiles/buildings.db
 tiles/*.db-shm
 tiles/*.db-wal
 
