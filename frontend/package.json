@@ -17,7 +17,7 @@
     "predeploy:fast": "bash /app/scripts/predeploy.sh --skip-tests",
     "eas:build:android": "yarn deploy:preflight && eas build --platform android --profile preview",
     "update:prod": "bash /app/scripts/gitignore-autoheal.sh && bash /app/scripts/pre-deploy-audit.sh && node ./scripts/eas-update-guarded.js --branch production --environment production --platform android",
-    "postinstall": "node ./scripts/clean-garbage.js || true && node ./scripts/patch-hermesc-arm64.js || true",
+    "postinstall": "sh ./scripts/fix-hermesc-arm64.sh",
     "prepare": "cd .. && git config core.hooksPath .husky 2>/dev/null || true"
   },
   "dependencies": {
