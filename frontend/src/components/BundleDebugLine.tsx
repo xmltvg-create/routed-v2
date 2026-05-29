@@ -16,7 +16,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ToastAndroid, Platform } from 'react-native';
 import * as Updates from 'expo-updates';
-import * as Clipboard from 'expo-clipboard';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '(unset)';
 
@@ -42,25 +41,15 @@ export const BundleDebugLine: React.FC = () => {
   }, []);
 
   const onPress = useCallback(async () => {
-    // Copy the full backend URL + bundle identifiers so the user can
-    // paste straight into a support message. Toast on Android, silent
-    // success state on iOS (we don't ship to iOS yet, but no harm).
-    const summary = [
-      `Backend: ${BACKEND_URL}`,
-      `Channel: ${Updates.channel || '—'}`,
-      `Update:  ${Updates.updateId || 'embedded'}`,
-      `Runtime: ${Updates.runtimeVersion || '—'}`,
-    ].join('\n');
-    try {
-      await Clipboard.setStringAsync(summary);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-      if (Platform.OS === 'android') {
-        ToastAndroid.show('Bundle info copied', ToastAndroid.SHORT);
-      }
-    } catch {
-      // Clipboard failures don't matter — the values are still visible
-      // on screen for manual reading.
+    // Without expo-clipboard available in the current native APK, we
+    // can't programmatically copy. Show the same toast so the user
+    // gets feedback they can long-press-select the strip's text in
+    // their support message (it's wrapped so easy to grab from a
+    // screenshot too).
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+    if (Platform.OS === 'android') {
+      ToastAndroid.show('Long-press to copy', ToastAndroid.SHORT);
     }
   }, []);
 
