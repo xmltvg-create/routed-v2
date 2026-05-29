@@ -42,12 +42,16 @@ type Match = {
   stop: Stop;
   pinNumber: number;
   zone: VanZone;
-  /** Locked Sharpie numbers (`original_sequence`) of OTHER parcels going
-   *  to the same address — sorted ascending, scanned stop excluded.
-   *  Empty when this is a single-parcel address. Rendered as a quiet
-   *  sub-text on the success overlay so the loader doesn't grab one
-   *  parcel and forget the siblings. */
-  siblings: number[];
+  /** Sorted, de-duped list of the locked Sharpie numbers
+   *  (`original_sequence`) of EVERY parcel at this address — INCLUDING the
+   *  scanned one. Drives the headline range and the detail line. */
+  addressNums: number[];
+  /** Headline shown as the giant number: a single stop ("47") or, when
+   *  multiple parcels share the address, the lowest–highest span
+   *  ("47–52") so the loader pulls the whole group at once. */
+  displayNumber: string;
+  /** Total parcels at this address (incl. scanned). >= 2 ⇒ multi-parcel. */
+  parcelCount: number;
 };
 
 const DEDUPE_MS = 2000;
@@ -205,7 +209,25 @@ export default function VanScanScreen() {
         .filter((n): n is number => typeof n === 'number')
         .sort((a, b) => a - b);
 
-      setMatch({ stop, pinNumber, zone, siblings });
+      // ── Address range (lowest–highest) ──
+      // Fold the scanned parcel's own number into the sibling set so the
+      // headline spans EVERY parcel at this address. When 2+ parcels share
+      // the address we show the giant range "lowest–highest" so the loader
+      // pulls the whole group in one grab; a single parcel keeps its plain
+      // number. The scanned stop always has a locked sequence here (the
+      // route-confirmation gate guarantees it), but we guard anyway.
+      const selfSeq =
+        typeof stop.original_sequence === 'number' ? stop.original_sequence : null;
+      const addressNums = Array.from(
+        new Set(selfSeq !== null ? [selfSeq, ...siblings] : siblings),
+      ).sort((a, b) => a - b);
+      const parcelCount = addressNums.length;
+      const displayNumber =
+        parcelCount >= 2
+          ? `${addressNums[0]}\u2013${addressNums[parcelCount - 1]}`
+          : String(pinNumber);
+
+      setMatch({ stop, pinNumber, zone, addressNums, displayNumber, parcelCount });
       setReject(null);
       markStopLoaded(stop.id);
       if (overlayTimerRef.current) clearTimeout(overlayTimerRef.current);
@@ -362,29 +384,35 @@ export default function VanScanScreen() {
           style={[styles.matchOverlay, { backgroundColor: match.zone.hex }]}
           data-testid={`van-scan-match-${match.pinNumber}`}
         >
-          <Text style={[styles.matchSeqLabel, { color: match.zone.textHex }]}>STOP</Text>
-          <Text style={[styles.matchSeqNum, { color: match.zone.textHex }]}>
-            {match.pinNumber}
+          <Text style={[styles.matchSeqLabel, { color: match.zone.textHex }]}>
+            {match.parcelCount >= 2 ? 'STOPS' : 'STOP'}
           </Text>
-          {/* Sibling sub-text — only present when other parcels share this
-             address. Same font size as the primary stop number so the
-             driver sees ALL parcels for this address with equal weight
-             (auto-shrinks to fit when there are many siblings). */}
-          {match.siblings.length > 0 && (
+          <Text
+            style={[styles.matchSeqNum, { color: match.zone.textHex }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.4}
+            data-testid={`van-scan-match-number-${match.pinNumber}`}
+          >
+            {match.displayNumber}
+          </Text>
+          {/* Multi-parcel address: the headline above already shows the
+             lowest–highest span; this line confirms the count and lists the
+             exact numbers so a non-contiguous group (e.g. 47, 49, 52) is
+             unambiguous and the loader grabs every parcel. */}
+          {match.parcelCount >= 2 && (
             <>
               <Text style={[styles.matchSiblingsLabel, { color: match.zone.textHex }]}>
-                ALSO AT THIS ADDRESS
+                {match.parcelCount} PARCELS · THIS ADDRESS
               </Text>
               <Text
-                style={[styles.matchSiblings, { color: match.zone.textHex }]}
-                numberOfLines={1}
+                style={[styles.matchAddressNums, { color: match.zone.textHex }]}
+                numberOfLines={2}
                 adjustsFontSizeToFit
-                minimumFontScale={0.35}
+                minimumFontScale={0.4}
                 data-testid={`van-scan-match-siblings-${match.pinNumber}`}
               >
-                {match.siblings.length >= 2
-                  ? `${Math.min(...match.siblings)}-${Math.max(...match.siblings)}`
-                  : match.siblings.join(', ')}
+                {match.addressNums.join(', ')}
               </Text>
             </>
           )}
@@ -529,15 +557,14 @@ const styles = StyleSheet.create({
     lineHeight: 138,
     fontVariant: ['tabular-nums'],
   },
-  matchSiblings: {
-    // Same massive size as `matchSeqNum` so all numbers for this address
-    // read with equal weight — the driver can't miss a sibling parcel.
-    // `adjustsFontSizeToFit` (set on the <Text>) shrinks long lists like
-    // "47, 89, 113, 124" so they always fit on one line within the badge.
-    fontSize: 132,
-    fontWeight: '900',
-    letterSpacing: -4,
-    lineHeight: 138,
+  matchAddressNums: {
+    // The headline above is now the lowest–highest range, so the exact
+    // parcel list is a clear-but-secondary readable line (auto-shrinks for
+    // long groups). Tabular figures keep the digits aligned.
+    fontSize: 30,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    lineHeight: 36,
     fontVariant: ['tabular-nums'],
     paddingHorizontal: 8,
     textAlign: 'center',
