@@ -4214,6 +4214,7 @@ def ortools_tsp_solve(
     depot: int = 0,
     time_limit_ms: int = 2000,
     initial_indices: List[int] = None,
+    locked_order: List[int] = None,
 ) -> List[int]:
     """
     Solve the Travelling Salesman Problem using Google OR-Tools.
@@ -4300,7 +4301,10 @@ def ortools_tsp_solve(
     # OR-Tools never routes through them. Keeps all nodes reachable via the
     # depot (sparsify_matrix preserves depot row + col), preserves optimality
     # on real-world delivery data, and shrinks the effective search space.
-    if n >= 20:
+    # Skipped when `locked_order` is set: forcing the locked sequence may
+    # legitimately require an arc that sparsification would have pruned, so we
+    # keep the full matrix to guarantee precedence feasibility.
+    if n >= 20 and not locked_order:
         try:
             from vrp_solver import sparsify_matrix
             nonzero = int_nxn[int_nxn > 0]
@@ -4335,6 +4339,29 @@ def ortools_tsp_solve(
 
     # Add cumulative dimension to track total cost (for diagnostics / constraints)
     routing.AddDimension(transit_idx, 0, LARGE, True, "Cost")
+
+    # ── Late Freight precedence constraints ──
+    # `locked_order` is a list of REAL node indices that MUST be visited in
+    # this exact relative order (their immutable Sharpie `original_sequence`).
+    # We add a unary "Position" dimension (cost 1 per arc) so each node's
+    # CumulVar equals its 0-based visit position, then constrain
+    # position(locked[k]) <= position(locked[k+1]) for every consecutive
+    # locked pair. Unlocked "late freight" nodes carry no such constraint, so
+    # PATH_CHEAPEST_ARC + GUIDED_LOCAL_SEARCH slot them into the cheapest gaps
+    # freely. This never mutates any stop's `original_sequence` value.
+    if locked_order and len(locked_order) >= 2:
+        def _unit_callback(from_index: int, to_index: int) -> int:
+            return 1
+        unit_idx = routing.RegisterTransitCallback(_unit_callback)
+        routing.AddDimension(unit_idx, 0, N, True, "Position")
+        position_dim = routing.GetDimensionOrDie("Position")
+        solver = routing.solver()
+        for a, b in zip(locked_order, locked_order[1:]):
+            if 0 <= a < n and 0 <= b < n:
+                solver.Add(
+                    position_dim.CumulVar(manager.NodeToIndex(a))
+                    <= position_dim.CumulVar(manager.NodeToIndex(b))
+                )
 
     # ── Search strategy ──
     search_params = pywrapcp.DefaultRoutingSearchParameters()
@@ -4386,6 +4413,42 @@ def ortools_tsp_solve(
             ordered.append(i)
 
     return ordered
+
+def _smart_insertion_fallback(
+    stops: List[dict],
+    matrix: List[List[float]],
+    start_index: int,
+    locked_order: List[int],
+) -> List[dict]:
+    """Deterministic late-freight insertion when the OR-Tools solver fails.
+
+    Builds the base route from the depot followed by the locked stops in
+    their immutable `original_sequence` order, then cheapest-inserts each
+    unlocked "late freight" stop into the gap that adds the least travel
+    cost (open-path, so appending at the end costs only the inbound leg).
+    Never mutates `original_sequence` values.
+    """
+    n = len(stops)
+    locked_set = set(locked_order)
+    base: List[int] = []
+    if start_index not in locked_set:
+        base.append(start_index)
+    base.extend(locked_order)
+    late = [i for i in range(n) if i != start_index and i not in locked_set]
+    for node in late:
+        best_pos, best_delta = len(base), float("inf")
+        for pos in range(1, len(base) + 1):
+            prev = base[pos - 1]
+            if pos < len(base):
+                nxt = base[pos]
+                delta = matrix[prev][node] + matrix[node][nxt] - matrix[prev][nxt]
+            else:
+                delta = matrix[prev][node]  # append at end (open path)
+            if delta < best_delta:
+                best_delta, best_pos = delta, pos
+        base.insert(best_pos, node)
+    return [stops[i] for i in base]
+
 
 def nearest_neighbor_optimize(stops: List[dict], distance_matrix: List[List[float]], start_index: int = 0) -> List[dict]:
     """Basic nearest neighbor optimization - greedy approach"""
@@ -5536,7 +5599,42 @@ async def _optimize_route_inner(
             algorithm_used = "vroom"
         else:
             algorithm_used = "ortools"
-    
+
+    # ── Late Freight Smart Insertion detection ───────────────────────────
+    # A manifest is "hybrid" when it mixes LOCKED stops (integer
+    # `original_sequence`, frozen at /routes/confirm) with unlocked "late
+    # freight" stops (null `original_sequence`). When that happens we must
+    # preserve the locked visiting order EXACTLY (stop N before stop N+1)
+    # while letting OR-Tools slot the late stops into the cheapest gaps —
+    # without mutating any `original_sequence` value. Only OR-Tools (with
+    # precedence constraints) can honour the lock, so this overrides the
+    # otherwise-selected solver. `locked_order_indices` are matrix-space
+    # node indices ordered by their immutable `original_sequence`.
+    locked_order_indices = None
+
+    def _orig_seq(s):
+        v = s.get("original_sequence")
+        # bool is a subclass of int — exclude it explicitly
+        return v if (isinstance(v, int) and not isinstance(v, bool)) else None
+
+    _locked_present = [(i, _orig_seq(s)) for i, s in enumerate(stops) if _orig_seq(s) is not None]
+    _late_present = any(
+        _orig_seq(s) is None and not s.get("is_start_point")
+        for s in stops
+    )
+    if len(_locked_present) >= 2 and _late_present:
+        _candidate = [i for (i, seq) in sorted(_locked_present, key=lambda t: t[1])]
+        # Guard: if the depot is itself a locked stop but NOT the earliest in
+        # sequence, precedence would be infeasible (depot is forced first).
+        # In that contradictory case we skip smart insertion entirely.
+        if not (start_index in _candidate and _candidate[0] != start_index):
+            locked_order_indices = _candidate
+            algorithm_used = "ortools_smart_insertion"
+            logger.info(
+                "Late Freight: %d locked + late freight detected → OR-Tools smart insertion",
+                len(locked_order_indices),
+            )
+
     # Respect the user's algorithm choice. Basic heuristics may be slow on large routes,
     # but silently hijacking the selection prevents the user from seeing how their picked
     # solver actually performs (and makes "algorithm X isn't working" look like a bug).
@@ -6542,6 +6640,36 @@ async def _optimize_route_inner(
         optimized_stops = [stops[i] for i in improved_indices]
         reasoning = "Optimized using 3-Opt improvement heuristic (NN seed + 3-edge reconnection)"
         
+    elif algorithm_used == "ortools_smart_insertion":
+        # ── Late Freight Smart Insertion ──
+        # Locked stops keep their immutable `original_sequence` order (N
+        # before N+1) via OR-Tools precedence constraints; unlocked late
+        # freight stops route freely (PATH_CHEAPEST_ARC + GUIDED_LOCAL_SEARCH)
+        # and slot into the cheapest gaps. We deliberately call
+        # `ortools_tsp_solve` directly (not cluster_aware_solve) so the
+        # locked node indices stay aligned with the precedence constraints.
+        solver_matrix = duration_matrix if duration_matrix else _haversine_duration_matrix(stops)
+        ortools_time_ms = max(2000, min(30000, 2000 + len(stops) * 80))
+        try:
+            indices = ortools_tsp_solve(
+                solver_matrix,
+                depot=start_index,
+                time_limit_ms=ortools_time_ms,
+                locked_order=locked_order_indices,
+            )
+            optimized_stops = [stops[i] for i in indices]
+            reasoning = (
+                f"Late Freight smart insertion (OR-Tools PATH_CHEAPEST_ARC + "
+                f"GUIDED_LOCAL_SEARCH, {len(locked_order_indices)} locked precedence "
+                f"constraints, {len(stops)} stops, {ortools_time_ms}ms)"
+            )
+        except Exception as e:
+            logger.warning("Smart insertion solver failed, deterministic fallback: %s", e)
+            optimized_stops = _smart_insertion_fallback(
+                stops, solver_matrix, start_index, locked_order_indices
+            )
+            reasoning = f"Late Freight smart insertion (deterministic fallback: {str(e)[:60]})"
+
     else:
         # Default to nearest neighbor
         optimized_stops = nearest_neighbor_optimize(stops, distance_matrix, start_index)

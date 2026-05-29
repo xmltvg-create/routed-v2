@@ -17,7 +17,7 @@ import * as Haptics from 'expo-haptics';
 import { Stop } from '../../store/stopsStore';
 import { formatDistance, formatDuration, OptimizationHub, ViewMode } from './types';
 import { groupStopsByLocation, getStopLabel } from '../../utils/groupStops';
-import { stopPinNumber, isRouteConfirmed as computeRouteConfirmed } from '../../utils/stopPinNumber';
+import { stopPinNumber, isRouteConfirmed as computeRouteConfirmed, buildLateFreightLabels } from '../../utils/stopPinNumber';
 
 const SIDEBAR_WIDTH = 320;
 const COLLAPSED_WIDTH = 56;
@@ -104,6 +104,11 @@ const GroupedStopsList: React.FC<{
   // glancing at the list spot late-freight instantly.
   const routeConfirmed = useMemo(() => computeRouteConfirmed(stops), [stops]);
 
+  // Late-freight slot labels ("45A", "45B") keyed by stop id, computed in
+  // visiting order and anchored to the nearest preceding locked stop. Keeps
+  // the sidebar in lock-step with the map pins (DeliveryMap late_label).
+  const lateLabels = useMemo(() => buildLateFreightLabels(stops as any), [stops]);
+
   // Track the running order index for display
   let runningIndex = 0;
 
@@ -155,7 +160,9 @@ const GroupedStopsList: React.FC<{
                 {stop.completed ? (
                   <Ionicons name="checkmark" size={14} color="#fff" />
                 ) : isLateFreight ? (
-                  <Ionicons name="star" size={14} color="#fff" testID={`late-freight-badge-${stop.id}`} />
+                  <Text style={styles.stopIndexText} testID={`late-freight-badge-${stop.id}`}>
+                    {lateLabels[stop.id] ?? '\u2605'}
+                  </Text>
                 ) : (
                   <Text style={styles.stopIndexText}>{pinNum ?? '—'}</Text>
                 )}
@@ -204,7 +211,9 @@ const GroupedStopsList: React.FC<{
                 !group.allCompleted && groupIsLateFreight && styles.stopIndexLateFreight,
               ]}>
                 {groupIsLateFreight && !group.allCompleted ? (
-                  <Ionicons name="star" size={14} color="#fff" testID={`late-freight-badge-${group.key}`} />
+                  <Text style={styles.stopIndexText} testID={`late-freight-badge-${group.key}`}>
+                    {(group.stops[0].id && lateLabels[group.stops[0].id]) ? lateLabels[group.stops[0].id] : '\u2605'}
+                  </Text>
                 ) : (
                   <Text style={styles.stopIndexText}>{groupHeadPin ?? '—'}</Text>
                 )}
@@ -299,6 +308,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onReorder,
   getSuburbColor,
 }) => {
+  // Late-freight slot labels ("45A", "45B") for the drag-reorder list —
+  // mirrors GroupedStopsList so the badge stays consistent across views.
+  const dragLateLabels = useMemo(() => buildLateFreightLabels(stops as any), [stops]);
+  const dragRouteConfirmed = useMemo(() => computeRouteConfirmed(stops), [stops]);
   return (
     <Animated.View 
       style={[
@@ -634,6 +647,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           <View style={[styles.stopIndex, item.completed && styles.stopIndexCompleted]}>
                             {item.completed ? (
                               <Ionicons name="checkmark" size={14} color="#fff" />
+                            ) : (stopPinNumber(item) === null && dragRouteConfirmed && dragLateLabels[item.id]) ? (
+                              <Text style={styles.stopIndexText} testID={`late-freight-badge-${item.id}`}>{dragLateLabels[item.id]}</Text>
                             ) : (
                               <Text style={styles.stopIndexText}>{stopPinNumber(item) ?? '—'}</Text>
                             )}

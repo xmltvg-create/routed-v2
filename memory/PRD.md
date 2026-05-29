@@ -1,4 +1,50 @@
-## 2026-05-29 — Telepathy Card on Profile Tab 🧠
+## 2026-05-29 — Late Freight Handling System (P0, partial) 📦
+
+### Scope (user-approved)
+User approved P0 **#1 Backend Smart Insertion** + **#2 Frontend 45A
+Labeling**. **#3 Proximity Alarm was explicitly scrapped** by the user.
+
+### #1 Backend Smart Insertion — `backend/server.py` (DONE, tested)
+- `ortools_tsp_solve()` gained a `locked_order` param: adds a unary
+  "Position" dimension (cost 1/arc) and constrains
+  `position(locked[k]) <= position(locked[k+1])` for every consecutive
+  locked pair → locked stops keep their immutable `original_sequence`
+  order (N before N+1); unlocked late stops route freely
+  (PATH_CHEAPEST_ARC + GUIDED_LOCAL_SEARCH) and slot into cheapest gaps.
+- Matrix sparsification skipped when `locked_order` set (guarantees
+  precedence feasibility).
+- `_optimize_route_inner()` detects HYBRID manifests (≥2 locked stops +
+  ≥1 late stop) and overrides the solver to a new
+  `ortools_smart_insertion` branch. Guard: skips if depot is a locked
+  stop that isn't the earliest in sequence (infeasible).
+- `_smart_insertion_fallback()`: deterministic cheapest-insertion used if
+  the OR-Tools solver throws.
+- Never mutates `original_sequence`; only the `order` field is updated.
+- Tests: `backend/tests/test_smart_insertion.py` (3 pass) + live e2e via
+  `/api/optimize` → order `[s1, L2, s2, L1, s3]` (locked 1→2→3, late
+  stops slotted into the gaps).
+
+### #2 Frontend 45A Labeling (DONE, logic verified)
+- `src/utils/stopPinNumber.ts`: new `getDisplaySequence(stops, idx)` and
+  `buildLateFreightLabels(stops)`. Late stops labelled by nearest
+  preceding locked stop → "45A", "45B"; pre-first-locked → "0A".
+- Map markers (`DeliveryMap.native.tsx`): React-side computes
+  `late_label` per feature; WebView painter uses it instead of "★"
+  (purple pin). `makeStopIcon` already handles 3-char labels.
+- Lists (`Sidebar.tsx`): grouped single, grouped head, and drag-reorder
+  rows now render the slot label for late freight instead of the star.
+- Verified label logic via node: `1A/2A`, two-in-gap `45A/45B`,
+  pre-locked `0A`.
+
+### NOT deployed yet
+- Backend change is in the Emergent workspace only. Prod deploy needs
+  GitHub → Coolify (Save-to-GitHub still diverged — manual PR/edit).
+- Frontend needs `eas update --branch production --environment production`
+  (NOT run by agent — awaiting user go-ahead). No new native modules added.
+
+---
+
+
 
 ### Summary
 Made Route Telepathy visible as a first-class profile feature so

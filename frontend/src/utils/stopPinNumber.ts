@@ -111,3 +111,72 @@ export function isRouteConfirmed(stops: ReadonlyArray<StopLike>): boolean {
   }
   return false;
 }
+
+// ── Late Freight display-sequence resolver (45A, 45B …) ───────────────
+// When a parcel is added AFTER the route is locked it has no
+// `original_sequence`. Rather than painting an anonymous "★", we give it
+// a human-friendly sequential label anchored to the nearest preceding
+// LOCKED stop in the *visiting order* (the order the driver actually
+// drives — typically the `order` field). So a late stop dropped between
+// locked stops 45 and 46 reads "45A"; a second one in the same gap reads
+// "45B"; and so on. This never mutates `original_sequence`.
+
+/**
+ * Returns the display label for the stop at `currentIndex` within a
+ * visiting-ordered `stops` array.
+ *
+ *   • Locked stop  → its `original_sequence` as a string ("45").
+ *   • Late freight → "<nearest preceding locked seq><letter>", e.g. "45A",
+ *                    "45B". Letters increment per consecutive late stop
+ *                    sharing the same locked anchor.
+ *   • Late freight before ANY locked stop → "0A", "0B" … (still sequential
+ *                    and unambiguous).
+ *
+ * IMPORTANT: the caller MUST pass `stops` in visiting/drive order (sorted
+ * by `order`) so the "nearest preceding locked stop" trace-back is correct.
+ */
+export function getDisplaySequence(
+  stops: ReadonlyArray<StopWithOrder>,
+  currentIndex: number,
+): string {
+  const stop = stops[currentIndex];
+  const seq = stop && stop.original_sequence;
+  if (typeof seq === 'number' && !Number.isNaN(seq)) {
+    return String(seq);
+  }
+  // Late freight — walk backwards to the nearest locked anchor, counting
+  // how many late stops sit between it and `currentIndex` for the letter.
+  let letterOffset = 0;
+  for (let i = currentIndex - 1; i >= 0; i--) {
+    const prev = stops[i];
+    const prevSeq = prev && prev.original_sequence;
+    if (typeof prevSeq === 'number' && !Number.isNaN(prevSeq)) {
+      return `${prevSeq}${String.fromCharCode(65 + letterOffset)}`;
+    }
+    letterOffset += 1;
+  }
+  return `0${String.fromCharCode(65 + letterOffset)}`;
+}
+
+/**
+ * Builds a `{ stopId: displayLabel }` map for every LATE-FREIGHT stop in
+ * the given array. Locked stops are omitted (callers already render their
+ * `original_sequence` directly). The input is sorted by `order` internally
+ * so callers can pass the raw stops array in any order.
+ */
+export function buildLateFreightLabels(
+  stops: ReadonlyArray<StopWithOrder & { id?: string | null }>,
+): Record<string, string> {
+  const ordered = [...stops].sort(
+    (a, b) => ((a && a.order) ?? 0) - ((b && b.order) ?? 0),
+  );
+  const out: Record<string, string> = {};
+  ordered.forEach((s, idx) => {
+    const seq = s && s.original_sequence;
+    const isLocked = typeof seq === 'number' && !Number.isNaN(seq);
+    if (!isLocked && s && s.id) {
+      out[s.id] = getDisplaySequence(ordered, idx);
+    }
+  });
+  return out;
+}

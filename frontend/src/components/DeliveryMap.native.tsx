@@ -16,6 +16,7 @@
 import React, { forwardRef, useImperativeHandle, useRef, useEffect, useState, useCallback } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { buildLateFreightLabels } from '../utils/stopPinNumber';
 
 // ─── Types (shared with web) ─────────────────────────────────────────────────
 
@@ -1471,7 +1472,10 @@ function processMessage(d) {
           label = origSeq;
           ringColor = '#e53e31';   // red — locked Sharpie
         } else if (_localRouteConfirmed) {
-          label = '\u2605';        // ★ Unicode BLACK STAR — late freight
+          // Late freight — prefer the human-readable slot label ("45A",
+          // "45B") computed in visiting order on the React side; fall back
+          // to the ★ glyph if it wasn't supplied.
+          label = (f.properties && f.properties.late_label) ? f.properties.late_label : '\u2605';
           ringColor = '#a855f7';   // purple-500 — late-freight warning
         } else if (typeof order === 'number' && !isNaN(order)) {
           label = order + 1;
@@ -2241,6 +2245,9 @@ const DeliveryMapInner = forwardRef<DeliveryMapRef, DeliveryMapProps>(function D
     if (fp === stopsFingerprintRef.current) return;
     stopsFingerprintRef.current = fp;
 
+    const lateFreightLabels = buildLateFreightLabels(
+      stops as unknown as { id?: string | null; order?: number | null; original_sequence?: number | null }[],
+    );
     const features = stops.map(s => {
       const meta = (s as { geocode_metadata?: { access_navigation_point?: { lat?: number; lng?: number } | null } }).geocode_metadata;
       const anp = meta && meta.access_navigation_point;
@@ -2275,6 +2282,13 @@ const DeliveryMapInner = forwardRef<DeliveryMapRef, DeliveryMapProps>(function D
           original_sequence: typeof (s as { original_sequence?: number | null }).original_sequence === 'number'
             ? (s as { original_sequence?: number | null }).original_sequence ?? null
             : null,
+          // Late-freight display label (e.g. "45A", "45B") computed in
+          // visiting order and anchored to the nearest preceding locked
+          // stop. Present ONLY for late-freight stops (null
+          // original_sequence on a confirmed route); the WebView painter
+          // uses it instead of the anonymous "★" so the driver sees a
+          // human-readable slot number. Locked stops carry null here.
+          late_label: (s.id && lateFreightLabels[s.id]) ? lateFreightLabels[s.id] : null,
           completed: !!s.completed,
           name: s.name || '',
           pending: !!(s as any).pending,
