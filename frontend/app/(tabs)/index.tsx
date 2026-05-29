@@ -406,57 +406,6 @@ export default function RouteScreen() {
     mapRef.current?.setRouteConfirmed(confirmed);
   }, [stops]);
 
-  // ── Sharpie marks auto-recovery ──────────────────────────────────────
-  // If a CSV re-import or accidental wipe cleared `original_sequence` on
-  // every stop, offer one-tap recovery via the deterministic VROOM+LKH
-  // re-run on the backend (POST /api/stops/recover-sharpie-marks). The
-  // alert fires once per app session — `sharpieRecoveryShownRef` guards
-  // re-firing if the user dismisses or recovers and we re-load stops.
-  const sharpieRecoveryShownRef = useRef(false);
-  useEffect(() => {
-    if (sharpieRecoveryShownRef.current) return;
-    if (stops.length < 5) return;  // skip tiny test routes
-    const withSharpie = stops.reduce(
-      (n, s: any) => n + (s.original_sequence != null ? 1 : 0),
-      0,
-    );
-    if (withSharpie === 0) {
-      sharpieRecoveryShownRef.current = true;
-      Alert.alert(
-        'Sharpie marks missing',
-        `Your ${stops.length} stops don't have stamped numbers. ` +
-        `This usually happens after a CSV re-import. ` +
-        `\n\nTap "Restore" to reproduce the last optimised sequence ` +
-        `(uses VROOM+LKH, deterministic — gives you the same numbers ` +
-        `you had before).`,
-        [
-          { text: 'Skip', style: 'cancel' },
-          {
-            text: 'Restore',
-            onPress: async () => {
-              try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
-              try {
-                const headers = await getAuthHeaders();
-                const r = await fetch(`${BACKEND_URL}/api/stops/recover-sharpie-marks`, {
-                  method: 'POST',
-                  headers,
-                });
-                if (!r.ok) {
-                  Alert.alert('Restore failed', `HTTP ${r.status}`);
-                  return;
-                }
-                const data = await r.json();
-                await fetchStops();
-                Alert.alert('Restored', `${data.restored} of ${data.total} stops re-stamped via ${data.algorithm}.`);
-              } catch (e: any) {
-                Alert.alert('Restore failed', e?.message || 'Network error');
-              }
-            },
-          },
-        ],
-      );
-    }
-  }, [stops, fetchStops]);
   const lastAlertFetch = useRef<number>(0);
   const alertCheckInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   
