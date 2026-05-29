@@ -17,6 +17,7 @@ import { TelemetryCard } from '../../src/components/TelemetryCard';
 import { MLServiceTimeCard } from '../../src/components/MLServiceTimeCard';
 import { MLBuildingSideCard } from '../../src/components/MLBuildingSideCard';
 import { TelepathyCard } from '../../src/components/TelepathyCard';
+import { BundleDebugLine } from '../../src/components/BundleDebugLine';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
@@ -350,6 +351,7 @@ export default function ProfileScreen() {
       </TouchableOpacity>
 
       <View style={styles.footer} />
+      <BundleDebugLine />
     </ScrollView>
   );
 }
