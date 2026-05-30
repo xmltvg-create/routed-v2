@@ -36,12 +36,34 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useStopsStore, Stop } from '../src/store/stopsStore';
 import { stopPinNumber } from '../src/utils/stopPinNumber';
-import { getVanZone, VanZone } from '../src/utils/vanZone';
+import { assignBin, useVanLayoutStore } from '../src/store/vanLayoutStore';
+
+/** Bin colour ramp — front (top row, by the door) → back (bottom row,
+ *  deepest). Mirrors the front-to-back cue the old 4-quadrant zones used,
+ *  but now driven by the driver's CONFIGURED grid row so the scanner and
+ *  the Load-Van plan agree on every bin. */
+const BIN_PALETTE = [
+  { hex: '#3b82f6', textHex: '#ffffff' }, // blue  — front / sliding door
+  { hex: '#10b981', textHex: '#0f172a' }, // emerald
+  { hex: '#f59e0b', textHex: '#0f172a' }, // amber
+  { hex: '#f43f5e', textHex: '#ffffff' }, // rose  — back / rear doors
+];
+function getBinColor(row: number, totalRows: number) {
+  if (totalRows <= 1) return BIN_PALETTE[0];
+  const idx = Math.min(
+    BIN_PALETTE.length - 1,
+    Math.round((row / (totalRows - 1)) * (BIN_PALETTE.length - 1)),
+  );
+  return BIN_PALETTE[idx];
+}
 
 type Match = {
   stop: Stop;
   pinNumber: number;
-  zone: VanZone;
+  /** Configured-grid bin (e.g. "B2") — SAME assignment Load-Van uses. */
+  bin: { label: string; row: number; col: number };
+  /** Front→back colour for the overlay, derived from the bin's row. */
+  binColor: { hex: string; textHex: string };
   /** Sorted, de-duped list of the locked Sharpie numbers
    *  (`original_sequence`) of EVERY parcel at this address — INCLUDING the
    *  scanned one. Drives the headline range and the detail line. */
@@ -74,7 +96,18 @@ export default function VanScanScreen() {
   const markStopLoaded = useStopsStore((s) => s.markStopLoaded);
   const clearLoadedStops = useStopsStore((s) => s.clearLoadedStops);
   const updateStop = useStopsStore((s) => s.updateStop);
+  const layout = useVanLayoutStore((s) => s.layout);
+  const fetchLayout = useVanLayoutStore((s) => s.fetchLayout);
   const [permission, requestPermission] = useCameraPermissions();
+
+  // Pull the driver's configured van grid so scanned bins match the
+  // Load-Van plan exactly. Defaults to 3×3 (same as load-van.tsx) until
+  // the saved layout loads.
+  useEffect(() => {
+    fetchLayout();
+  }, [fetchLayout]);
+  const gridRows = layout?.rows ?? 3;
+  const gridCols = layout?.cols ?? 3;
 
   const [match, setMatch] = useState<Match | null>(null);
   const [reject, setReject] = useState<{ code: string } | null>(null);
@@ -126,6 +159,22 @@ export default function VanScanScreen() {
     [stops],
   );
 
+  // Bin assignment — IDENTICAL to load-van.tsx so the scanner and the
+  // Load-Van manifest agree on every parcel's bin. Pending stops sorted by
+  // delivery `order`, mapped proportionally onto the configured grid via
+  // the shared `assignBin` helper. Keyed by stop id for O(1) scan lookup.
+  const binByStopId = useMemo(() => {
+    const ordered = stops
+      .filter((s) => !s.completed)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const total = ordered.length;
+    const m = new Map<string, { label: string; row: number; col: number }>();
+    ordered.forEach((s, idx) => {
+      if (s.id) m.set(s.id, assignBin(idx, total, gridRows, gridCols));
+    });
+    return m;
+  }, [stops, gridRows, gridCols]);
+
   const onBarcodeScanned = useCallback(
     (result: BarcodeScanningResult) => {
       const raw = (result.data ?? '').trim();
@@ -174,7 +223,16 @@ export default function VanScanScreen() {
       // Successful match: success haptic + massive overlay + record load.
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       const pinNumber = stopPinNumber(stop) ?? 0;
-      const zone = getVanZone(stop.original_sequence ?? pinNumber, totalStops);
+      // Configured-grid bin — same assignment Load-Van shows. Fallback to
+      // the stop's slot in the full delivery order if it isn't in the
+      // pending map (e.g. a re-scanned, already-completed parcel).
+      let bin = stop.id ? binByStopId.get(stop.id) : undefined;
+      if (!bin) {
+        const allOrdered = [...stops].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+        const i = allOrdered.findIndex((x) => x.id === stop.id);
+        bin = assignBin(i < 0 ? 0 : i, allOrdered.length || 1, gridRows, gridCols);
+      }
+      const binColor = getBinColor(bin.row, gridRows);
 
       // ── Silent sibling detection ─────────────────────────────────────
       // Co-located parcels are a routine occurrence on B2C runs (apartment
@@ -227,13 +285,13 @@ export default function VanScanScreen() {
           ? `${addressNums[0]}\u2013${addressNums[parcelCount - 1]}`
           : String(pinNumber);
 
-      setMatch({ stop, pinNumber, zone, addressNums, displayNumber, parcelCount });
+      setMatch({ stop, pinNumber, bin, binColor, addressNums, displayNumber, parcelCount });
       setReject(null);
       markStopLoaded(stop.id);
       if (overlayTimerRef.current) clearTimeout(overlayTimerRef.current);
       overlayTimerRef.current = setTimeout(() => setMatch(null), OVERLAY_HOLD_MS);
     },
-    [lookupByTracking, totalStops, stops, markStopLoaded, isAttachMode, attachToStopId, updateStop, router]
+    [lookupByTracking, stops, binByStopId, gridRows, gridCols, markStopLoaded, isAttachMode, attachToStopId, updateStop, router]
   );
 
   useEffect(() => () => {
@@ -377,18 +435,18 @@ export default function VanScanScreen() {
         </Text>
       </View>
 
-      {/* Massive success overlay — original_sequence + van zone */}
+      {/* Massive success overlay — Sharpie number/range + configured-grid bin */}
       {match && (
         <View
           pointerEvents="none"
-          style={[styles.matchOverlay, { backgroundColor: match.zone.hex }]}
+          style={[styles.matchOverlay, { backgroundColor: match.binColor.hex }]}
           data-testid={`van-scan-match-${match.pinNumber}`}
         >
-          <Text style={[styles.matchSeqLabel, { color: match.zone.textHex }]}>
+          <Text style={[styles.matchSeqLabel, { color: match.binColor.textHex }]}>
             {match.parcelCount >= 2 ? 'STOPS' : 'STOP'}
           </Text>
           <Text
-            style={[styles.matchSeqNum, { color: match.zone.textHex }]}
+            style={[styles.matchSeqNum, { color: match.binColor.textHex }]}
             numberOfLines={1}
             adjustsFontSizeToFit
             minimumFontScale={0.4}
@@ -402,11 +460,11 @@ export default function VanScanScreen() {
              unambiguous and the loader grabs every parcel. */}
           {match.parcelCount >= 2 && (
             <>
-              <Text style={[styles.matchSiblingsLabel, { color: match.zone.textHex }]}>
+              <Text style={[styles.matchSiblingsLabel, { color: match.binColor.textHex }]}>
                 {match.parcelCount} PARCELS · THIS ADDRESS
               </Text>
               <Text
-                style={[styles.matchAddressNums, { color: match.zone.textHex }]}
+                style={[styles.matchAddressNums, { color: match.binColor.textHex }]}
                 numberOfLines={2}
                 adjustsFontSizeToFit
                 minimumFontScale={0.4}
@@ -417,25 +475,48 @@ export default function VanScanScreen() {
             </>
           )}
           <View style={styles.zoneChip}>
-            <Ionicons name="cube" size={20} color={match.zone.textHex} />
-            <Text style={[styles.zoneChipText, { color: match.zone.textHex }]}>
-              LOAD INTO {match.zone.zone.toUpperCase()}
+            <Ionicons name="cube" size={20} color={match.binColor.textHex} />
+            <Text
+              style={[styles.zoneChipText, { color: match.binColor.textHex }]}
+              data-testid={`van-scan-match-bin-${match.pinNumber}`}
+            >
+              LOAD INTO BIN {match.bin.label}
             </Text>
           </View>
-          <Text style={[styles.matchAddress, { color: match.zone.textHex }]} numberOfLines={2}>
+          <Text style={[styles.matchAddress, { color: match.binColor.textHex }]} numberOfLines={2}>
             {match.stop.address}
           </Text>
-          <View style={styles.zoneIndicator}>
-            {[1, 2, 3, 4].map((q) => (
-              <View
-                key={q}
-                style={[
-                  styles.zoneIndicatorBar,
-                  q === match.zone.quadrant
-                    ? { backgroundColor: match.zone.textHex, opacity: 1 }
-                    : { backgroundColor: match.zone.textHex, opacity: 0.25 },
-                ]}
-              />
+          {/* Mini grid mirroring the Load-Van layout — the target bin is
+             highlighted so the driver instantly sees WHERE in the van it
+             goes, matching the configured grid exactly. */}
+          <View style={styles.binGrid}>
+            {Array.from({ length: gridRows }).map((_, r) => (
+              <View key={r} style={styles.binGridRow}>
+                {Array.from({ length: gridCols }).map((__, c) => {
+                  const active = r === match.bin.row && c === match.bin.col;
+                  return (
+                    <View
+                      key={c}
+                      style={[
+                        styles.binGridCell,
+                        { borderColor: match.binColor.textHex },
+                        active
+                          ? { backgroundColor: match.binColor.textHex }
+                          : { opacity: 0.4 },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.binGridCellText,
+                          { color: active ? match.binColor.hex : match.binColor.textHex },
+                        ]}
+                      >
+                        {String.fromCharCode(65 + r)}{c + 1}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
             ))}
           </View>
         </View>
@@ -452,19 +533,22 @@ export default function VanScanScreen() {
         </View>
       )}
 
-      {/* Bottom hint with quadrant legend */}
+      {/* Bottom hint — front/back orientation legend for the configured grid */}
       <View pointerEvents="none" style={styles.legendRow}>
-        {([1, 2, 3, 4] as const).map((q) => {
-          const z = getVanZone(q, 4); // sample sequence for label only
-          return (
-            <View key={q} style={[styles.legendChip, { backgroundColor: z.hex }]}>
-              <Text style={[styles.legendChipQ, { color: z.textHex }]}>Q{q}</Text>
-              <Text style={[styles.legendChipLabel, { color: z.textHex }]} numberOfLines={1}>
-                {z.zone}
-              </Text>
-            </View>
-          );
-        })}
+        <View style={[styles.legendChip, { backgroundColor: BIN_PALETTE[0].hex }]}>
+          <Text style={[styles.legendChipLabel, { color: BIN_PALETTE[0].textHex }]} numberOfLines={1}>
+            Row A · door
+          </Text>
+        </View>
+        <View style={styles.legendGridInfo}>
+          <Ionicons name="grid" size={16} color="#cbd5e1" />
+          <Text style={styles.legendGridText}>Bins match Load-Van · {gridRows}×{gridCols}</Text>
+        </View>
+        <View style={[styles.legendChip, { backgroundColor: BIN_PALETTE[BIN_PALETTE.length - 1].hex }]}>
+          <Text style={[styles.legendChipLabel, { color: BIN_PALETTE[BIN_PALETTE.length - 1].textHex }]} numberOfLines={1}>
+            Row {String.fromCharCode(65 + gridRows - 1)} · deep
+          </Text>
+        </View>
       </View>
     </View>
   );
@@ -588,16 +672,25 @@ const styles = StyleSheet.create({
   },
   zoneChipText: { fontSize: 14, fontWeight: '800', marginLeft: 8, letterSpacing: 0.5 },
   matchAddress: { fontSize: 14, fontWeight: '600', textAlign: 'center', opacity: 0.92, paddingHorizontal: 6 },
-  zoneIndicator: {
-    flexDirection: 'row',
+  // Mini grid mirroring the configured Load-Van layout
+  binGrid: {
     marginTop: 18,
     gap: 6,
   },
-  zoneIndicatorBar: {
-    width: 38,
-    height: 5,
-    borderRadius: 3,
+  binGridRow: {
+    flexDirection: 'row',
+    gap: 6,
+    justifyContent: 'center',
   },
+  binGridCell: {
+    width: 40,
+    height: 32,
+    borderRadius: 7,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  binGridCellText: { fontSize: 12, fontWeight: '900', letterSpacing: 0.5 },
 
   // Reject overlay
   rejectOverlay: {
@@ -638,6 +731,13 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
   },
-  legendChipQ: { fontSize: 11, fontWeight: '900', letterSpacing: 1 },
-  legendChipLabel: { fontSize: 9, fontWeight: '600' },
+  legendChipLabel: { fontSize: 9, fontWeight: '700', letterSpacing: 0.3 },
+  legendGridInfo: {
+    flex: 1.6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  legendGridText: { fontSize: 10, fontWeight: '700', color: '#e2e8f0', letterSpacing: 0.3 },
 });

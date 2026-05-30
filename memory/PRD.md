@@ -1,3 +1,41 @@
+## 2026-05-30 — Van Scan now matches Load-Van bins 📦 (DONE — needs OTA)
+
+### Problem
+Van Scan showed a fixed **4-quadrant zone** (`getVanZone` → "Mid Front" etc.)
+that ignored the driver's configured van grid, while Load-Van placed parcels
+into the **configured grid bins** (`assignBin` + `vanLayoutStore`, e.g. A1/B2).
+Scanning a parcel told the driver a zone that didn't exist in their grid →
+"van scan doesn't match the van loading".
+
+### Fix (`frontend/app/van-scan.tsx`)
+- Removed `getVanZone`/`VanZone`; now imports `assignBin` + `useVanLayoutStore`.
+- `fetchLayout()` on mount; `gridRows/gridCols = layout?.rows/cols ?? 3` —
+  identical defaults to load-van.
+- `binByStopId` memo replicates load-van **exactly**: pending stops
+  (`!completed`) sorted by delivery `order`, `assignBin(idx, total, rows, cols)`,
+  keyed by stop id. (Verified load-van uses the same call/signature.)
+- On scan: resolve the bin (fallback to full-order index for a re-scanned
+  completed parcel), colour the overlay front→back by bin row.
+- Overlay now reads **"LOAD INTO BIN B2"** + a **mini grid** mirroring the
+  configured layout with the target bin highlighted (same labels as
+  `binLabel`). Bottom legend shows front(door)→back orientation +
+  "Bins match Load-Van · R×C".
+- `data-testid="van-scan-match-bin-<pin>"` added.
+
+### Verified
+- Bin computation byte-for-byte identical to load-van (`assignBin(deliveryIdx,
+  total, layout.rows??3, layout.cols??3)` over `!completed` stops sorted by
+  `order`). `binLabel` format `A1` matches the mini-grid cells.
+- TypeScript: van-scan.tsx clean (`tsc`); Metro web bundle compiles.
+- NOTE: the match overlay only renders on a live camera scan, so on-device
+  verification after OTA is recommended (not web-testable).
+
+### Deploy
+- Pure **frontend** JS change → EAS OTA. No native modules added.
+
+---
+
+
 ## 2026-05-30 — Late-freight labels (45A/45B) now show in driving mode 🚗 (DONE — needs OTA)
 
 ### Problem
