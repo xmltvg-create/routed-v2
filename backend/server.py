@@ -5634,6 +5634,24 @@ async def _optimize_route_inner(
         else:
             algorithm_used = "ortools"
 
+    # ── Cluster-first removed (2026-05-30) ───────────────────────────────
+    # Cluster-first partitioned stops with HAVERSINE before routing, which
+    # imposed artificial cluster boundaries and could trap a stop in the
+    # wrong group — visibly worse than a full-matrix solve now that a real
+    # OSRM road matrix is always available. Redirect any cluster_first
+    # request to the standard full-matrix cascade so optimization always
+    # runs on the OSRM N×N matrix.
+    if algorithm_used == "cluster_first":
+        if VROOM_AVAILABLE and LKH_AVAILABLE and len(stops) >= 11:
+            algorithm_used = "vroom_lkh_3opt"
+        elif VROOM_AVAILABLE:
+            algorithm_used = "vroom"
+        else:
+            algorithm_used = "ortools"
+        logger.info(
+            "cluster_first is removed — redirected to %s (full OSRM matrix)",
+            algorithm_used,
+        )
     # ── Late Freight Smart Insertion detection ───────────────────────────
     # A manifest is "hybrid" when it mixes LOCKED stops (integer
     # `original_sequence`, frozen at /routes/confirm) with unlocked "late
@@ -8573,13 +8591,6 @@ async def list_optimization_algorithms(response: Response):
                 "description": "Classic VRP algorithm that builds routes by merging based on distance savings from depot",
                 "best_for": "Delivery routes starting from a depot/warehouse",
                 "complexity": "O(n² log n)"
-            },
-            {
-                "id": "cluster_first",
-                "name": "Cluster-First",
-                "description": "DBSCAN geographic clustering into neighborhoods, then OR-Tools per-cluster with Mapbox road distances. Guarantees spatially coherent routing — clears each area before moving to the next.",
-                "best_for": "Large delivery routes (25-500+ stops) with multiple neighborhoods",
-                "complexity": "O(n² clustering + per-cluster OR-Tools)"
             },
             {
                 "id": "generoute",

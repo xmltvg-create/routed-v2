@@ -1,3 +1,36 @@
+## 2026-05-30 — Cluster-first removed from optimize 🧹 (DONE, e2e verified — needs backend deploy)
+
+### Why
+Cluster-first partitioned stops with **haversine** before routing, imposing
+artificial cluster boundaries that could trap a stop in the wrong group —
+strictly worse than a full-matrix solve now that a real OSRM road matrix is
+always available (per the matrix-robustness fix earlier today).
+
+### Change (`backend/server.py`)
+- Any `algorithm == "cluster_first"` request is now **redirected** to the
+  standard full-matrix cascade (`vroom_lkh_3opt` / `vroom` / `ortools`) so
+  optimization always runs on the OSRM N×N matrix. The haversine-clustering
+  branch (line ~5681) and the `cluster_first_optimize` dispatch are no
+  longer reachable from the API.
+- Removed the **Cluster-First** entry from `GET /api/optimize/algorithms`
+  so it can't be selected in the picker.
+- `cluster_first_optimize()` helper + its unit tests
+  (`tests/test_cluster_first_osrm.py`) left intact (not API-reachable).
+
+### Verified (live e2e)
+- `GET /api/optimize/algorithms` no longer lists `cluster_first`.
+- `POST /api/optimize {algorithm:"cluster_first"}` on a 45-stop manifest →
+  log `cluster_first is removed — redirected to vroom (full OSRM matrix)` →
+  `RESOLVED via [primary] pathpilot-osrm.fly.dev` → reasoning
+  "VROOM + 3-opt (OSRM duration matrix, 45 stops)".
+- Regression: 6 passed (`test_smart_insertion` + `test_cluster_first_osrm`).
+
+### Deploy
+- Pure **backend** change → Save to GitHub → Coolify redeploy. No OTA.
+
+---
+
+
 ## 2026-05-30 — Route clustering fix: prod OSRM matrix robustness 🛣️ (DONE, e2e verified — needs backend deploy)
 
 ### Problem
