@@ -1,3 +1,51 @@
+## 2026-05-30 — Route clustering fix: prod OSRM matrix robustness 🛣️ (DONE, e2e verified — needs backend deploy)
+
+### Problem
+Driver reported the optimizer "can't be using the OSRM full matrix —
+clustering this badly" on ~200-stop routes. Root cause traced to
+`_osrm_duration_matrix` in `server.py`:
+1. **Candidate ordering** only tried the promoted `OSRM_URL` then the
+   **rate-limited public demo** (`router.project-osrm.org`, 100-coord
+   cap). If Coolify was missing `OSRM_URL_PROD`, the dedicated prod OSRM
+   was never tried → public demo fails for >100 stops → haversine-stitched
+   batches / Mapbox clustering → bad clustering.
+2. **`connect=2.0s` / `read=30s` timeout** (tuned for fast-fail localhost)
+   was far too aggressive for the remote Fly.io OSRM. Live repro: a cold
+   `pathpilot-osrm.fly.dev` took 30 s to return a 60×60 table → hit the
+   30 s read timeout → `OSRM[primary] failed` → silent fallback to the
+   public demo.
+
+### Fix (`backend/server.py`)
+- **Robust candidate ordering** in `_osrm_duration_matrix`: loopback OSRM
+  (fast local dev) → promoted/primary remote → **always the dedicated prod
+  OSRM** (`OSRM_URL_PROD`, now defaults to `https://pathpilot-osrm.fly.dev`
+  so it's never empty even if Coolify env is missing) → public demo as
+  last-ditch. Deduped via a seen-set. Guarantees the high-capacity prod
+  OSRM is tried before the 100-coord demo.
+- **Host-adaptive timeout** in `_osrm_duration_matrix_for_url`: 2 s connect
+  for loopback (fast-fail), **10 s connect / 45 s read** for remote hosts
+  so a cold Fly.io OSRM gets enough headroom instead of spuriously timing
+  out into the demo fallback.
+- Added explicit `OSRM matrix RESOLVED via [label] url` / `UNRESOLVED`
+  log lines so prod logs show exactly which matrix source + coverage was
+  used per optimize.
+
+### Verified (live e2e against preview)
+- 60-stop, 3-cluster Brisbane manifest → optimize 200 OK, resolved via
+  `[primary] pathpilot-osrm.fly.dev` in a single 60×60 call (10.8 s total,
+  warm). Real road durations (`duration_row0=[1,262,240,...]`), not zeros.
+- Regression: `tests/test_smart_insertion.py` + `tests/test_cluster_first_osrm.py`
+  → 6 passed.
+
+### Deploy
+- Pure **backend** change → Save to GitHub → Coolify redeploy. No OTA.
+- Optional: set `OSRM_URL_PROD=https://pathpilot-osrm.fly.dev` (and
+  `OSRM_PUBLIC_URL`) in Coolify env to be explicit, but the code default
+  now makes prod robust even without it.
+
+---
+
+
 ## 2026-05-29 — Late-freight auto-scan + Mapbox token 🔁
 
 ### Auto-scan on late-freight add (DONE in workspace, NOT yet OTA'd)

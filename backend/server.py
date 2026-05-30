@@ -286,7 +286,7 @@ OSRM_PUBLIC_URL = os.environ.get('OSRM_PUBLIC_URL', 'https://router.project-osrm
 # OSRM_URL at startup. Lets a single .env file work both in sandbox (fast
 # localhost OSRM) and on the Emergent production pod (no OSRM binary)
 # without per-environment branching at every call site.
-OSRM_URL_PROD = os.environ.get('OSRM_URL_PROD', '').strip()
+OSRM_URL_PROD = os.environ.get('OSRM_URL_PROD', 'https://pathpilot-osrm.fly.dev').strip()
 if OSRM_URL_PROD and OSRM_URL.startswith(('http://localhost', 'http://127.', 'http://[::1]')):
     import socket as _socket
     import time as _osrm_probe_time
@@ -2615,18 +2615,45 @@ async def _osrm_duration_matrix(stops: List[dict]) -> Optional[List[List[int]]]:
         logger.info("OSRM matrix CACHE HIT (%d stops, key=%s)", n, cache_key)
         return cached
 
-    # Try local OSRM first (fast when available), then the public demo.
+    # Build the candidate URL list in quality-priority order. The goal: a
+    # 200-stop manifest must resolve against a high-capacity OSRM (single
+    # NxN call) and must NEVER silently degrade to the rate-limited public
+    # demo (100-coord cap → stitched haversine batches → bad clustering)
+    # when a dedicated prod OSRM is reachable — even if Coolify didn't set
+    # OSRM_URL_PROD (the hardcoded default keeps prod robust).
     candidates: List[tuple[str, str]] = []
-    if _osrm_enabled():
-        candidates.append(("local", OSRM_URL))
-    if OSRM_PUBLIC_URL and OSRM_PUBLIC_URL != OSRM_URL:
-        candidates.append(("public", OSRM_PUBLIC_URL))
+    _seen_urls: set[str] = set()
+
+    def _add_candidate(label: str, url: str) -> None:
+        if url and url not in _seen_urls:
+            candidates.append((label, url))
+            _seen_urls.add(url)
+
+    # 1) Fast loopback OSRM (sandbox/dev with a local binary) wins when alive.
+    if _osrm_enabled() and OSRM_URL.startswith(('http://localhost', 'http://127.', 'http://[::1]')):
+        _add_candidate("local", OSRM_URL)
+    # 2) Promoted/primary OSRM_URL when it's a real remote (not the demo).
+    if _osrm_enabled() and OSRM_URL != OSRM_PUBLIC_URL:
+        _add_candidate("primary", OSRM_URL)
+    # 3) Dedicated prod OSRM (large --max-table-size) — always before the demo.
+    _add_candidate("prod", OSRM_URL_PROD)
+    # 4) Last-ditch rate-limited public demo (100-coord cap).
+    _add_candidate("public", OSRM_PUBLIC_URL)
 
     for label, base_url in candidates:
         matrix = await _osrm_duration_matrix_for_url(stops, base_url, label)
         if matrix is not None:
+            logger.info(
+                "OSRM matrix RESOLVED via [%s] %s for %d stops",
+                label, base_url, n,
+            )
             _osrm_matrix_cache.set(cache_key, matrix)
             return matrix
+    logger.warning(
+        "OSRM matrix UNRESOLVED for %d stops after trying %d candidate(s): %s "
+        "— caller will fall back to Mapbox/haversine (degraded clustering)",
+        n, len(candidates), [c[0] for c in candidates],
+    )
     return None
 
 
@@ -2643,12 +2670,19 @@ async def _osrm_duration_matrix_for_url(
     n = len(stops)
     OSRM_BATCH = 100
 
-    # Fast-connect timeout so a never-listening `localhost:5000` (e.g.
-    # when the Emergent prod pod doesn't run a local OSRM service)
-    # bails in ~2 s instead of burning the whole 30 s read window.
-    # The 30 s read timeout still applies to in-flight requests so a
-    # genuinely slow public OSRM response isn't truncated.
-    OSRM_TIMEOUT = httpx.Timeout(connect=2.0, read=30.0, write=10.0, pool=5.0)
+    # Connect-timeout policy is host-dependent:
+    #   • Loopback (localhost) → 2 s fast-fail. A never-listening local OSRM
+    #     (e.g. the prod pod with no local binary) bails quickly so we move
+    #     on to the next candidate instead of burning the read window.
+    #   • Remote OSRM (promoted prod `pathpilot-osrm.fly.dev`, or the public
+    #     demo) → 10 s connect. A 2 s connect is far too aggressive for a
+    #     remote host that needs a TLS handshake and may be cold-starting
+    #     (Fly.io scale-to-zero). Spurious connect timeouts here were the
+    #     cause of the prod OSRM silently falling back to the rate-limited
+    #     public demo / Mapbox stitching → bad clustering on 200-stop runs.
+    _is_loopback = base_url.startswith(('http://localhost', 'http://127.', 'http://[::1]'))
+    _connect_timeout = 2.0 if _is_loopback else 10.0
+    OSRM_TIMEOUT = httpx.Timeout(connect=_connect_timeout, read=45.0, write=10.0, pool=5.0)
 
     try:
         async with httpx.AsyncClient(timeout=OSRM_TIMEOUT) as client:
